@@ -1,4 +1,4 @@
-REGION_UNKNOWN = ""
+_REGION_UNKNOWN = ""
 
 
 class RegionConfig(object):
@@ -25,18 +25,18 @@ def register_region(region: str, region_config: RegionConfig):
     _region_config_map[region] = region_config
 
 
-def get_region_config(region: str) -> RegionConfig:
+def _get_region_config(region: str) -> RegionConfig:
     global _region_config_map
     if region in _region_config_map:
         return _region_config_map[region]
     return None
 
 
-def get_region_hosts(region: str) -> list:
+def _get_region_hosts(region: str) -> list:
     global _region_config_map
     return _region_config_map[region].hosts
 
 
-def get_volc_credential_region(region: str) -> str:
+def _get_volc_credential_region(region: str) -> str:
     global _region_config_map
     return _region_config_map[region].volc_credential_region

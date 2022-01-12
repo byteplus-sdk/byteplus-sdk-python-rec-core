@@ -1,4 +1,4 @@
-__title__ = 'byteplus_rec_core'
+__title__ = 'byteplus-rec-core'
 __description__ = 'core pkg for byteplus rec'
 __url__ = 'https://github.com/byteplus-sdk'
 __version__ = '1.0.1'
