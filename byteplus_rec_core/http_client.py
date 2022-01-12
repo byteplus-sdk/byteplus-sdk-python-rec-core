@@ -1,15 +1,15 @@
 from google.protobuf.message import Message
 
 from byteplus_rec_core.host_availabler import HostAvailabler, PingHostAvailabler, PingHostAvailablerConfig
-from byteplus_rec_core.http_caller import HTTPCaller
+from byteplus_rec_core.http_caller import _HTTPCaller
 from byteplus_rec_core.option import Option
-from byteplus_rec_core.region import REGION_UNKNOWN, get_region_config, get_region_hosts, get_volc_credential_region
+from byteplus_rec_core.region import _REGION_UNKNOWN, _get_region_config, _get_region_hosts, _get_volc_credential_region
 from byteplus_rec_core.url_center import _url_center_instance
 from byteplus_rec_core.volcauth.volcauth import Credential
 
 
 class HTTPClient(object):
-    def __init__(self, schema: str, http_caller: HTTPCaller, host_availabler: HostAvailabler):
+    def __init__(self, schema: str, http_caller: _HTTPCaller, host_availabler: HostAvailabler):
         self._schema = schema
         self._http_caller = http_caller
         self._host_availabler = host_availabler
@@ -86,16 +86,16 @@ class HTTPClientBuilder(object):
         self._fill_hosts()
         self._fill_default()
         credential: Credential = self._build_volc_credential()
-        http_caller: HTTPCaller = HTTPCaller(self._tenant_id, self._token, self._use_air_auth, credential)
+        http_caller: _HTTPCaller = _HTTPCaller(self._tenant_id, self._token, self._use_air_auth, credential)
         return HTTPClient(self._schema, http_caller, self._host_availabler)
 
     def _check_required_field(self):
         if len(self._tenant_id) == 0:
             raise Exception("Tenant id is emtpy")
         self._check_auth_required_field()
-        if self._region == REGION_UNKNOWN:
+        if self._region == _REGION_UNKNOWN:
             raise Exception("Region is empty")
-        if get_region_config(self._region) is None:
+        if _get_region_config(self._region) is None:
             raise Exception("region({}) is not support".format(self._region))
 
     def _check_auth_required_field(self):
@@ -107,7 +107,7 @@ class HTTPClientBuilder(object):
 
     def _fill_hosts(self):
         if self._hosts is None:
-            self._hosts = get_region_hosts(self._region)
+            self._hosts = _get_region_hosts(self._region)
 
     def _fill_default(self):
         if self._schema == "":
@@ -119,4 +119,4 @@ class HTTPClientBuilder(object):
             self._host_availabler.set_hosts(self._hosts)
 
     def _build_volc_credential(self) -> Credential:
-        return Credential(self._ak, self._sk, get_volc_credential_region(self._region), self._auth_service)
+        return Credential(self._ak, self._sk, _get_volc_credential_region(self._region), self._auth_service)

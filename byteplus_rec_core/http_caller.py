@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 _SUCCESS_HTTP_CODE = 200
 
 
-class HTTPCaller(object):
+class _HTTPCaller(object):
 
     def __init__(self, tenant_id: str, token: str, use_air_auth: bool, credential: Credential):
         self._tenant_id = tenant_id
