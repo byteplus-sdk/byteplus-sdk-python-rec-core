@@ -1,3 +1,6 @@
+import json
+from typing import Optional, Any, Union
+
 from google.protobuf.message import Message
 
 from byteplus_rec_core.host_availabler import HostAvailabler, PingHostAvailabler, PingHostAvailablerConfig
@@ -14,10 +17,10 @@ class HTTPClient(object):
         self._http_caller = http_caller
         self._host_availabler = host_availabler
 
-    def do_json_request(self, path: str, request, response: Message, *opts: Option) -> None:
+    def do_json_request(self, path: str, request: Union[dict, list], *opts: Option) -> Union[dict, list]:
         host: str = self._host_availabler.get_host()
         url: str = _url_center_instance(self._schema, host).get_url(path)
-        return self._http_caller.do_json_request(url, request, response, *opts)
+        return self._http_caller.do_json_request(url, request, *opts)
 
     def do_pb_request(self, path: str, request: Message, response: Message, *opts: Option):
         host: str = self._host_availabler.get_host()
@@ -28,18 +31,19 @@ class HTTPClient(object):
         self._host_availabler.shutdown()
 
 
-class HTTPClientBuilder(object):
+class _HTTPClientBuilder(object):
     def __init__(self):
-        self._tenant_id: str = ""
-        self._token: str = ""
-        self._ak: str = ""
-        self._sk: str = ""
-        self._auth_service: str = ""
-        self._use_air_auth: bool = False
-        self._schema: str = ""
-        self._hosts: list[str] = None
-        self._region: str = ""
-        self._host_availabler: HostAvailabler = None
+        self._tenant_id: Optional[str] = None
+        self._token: Optional[str] = None
+        self._ak: Optional[str] = None
+        self._sk: Optional[str] = None
+        self._auth_service: Optional[str] = None
+        self._use_air_auth: Optional[bool] = None
+        self._schema: Optional[str] = None
+        self._host_header: Optional[str] = None
+        self._hosts: Optional[list[str]] = None
+        self._region: Optional[str] = None
+        self._host_availabler: Optional[HostAvailabler] = None
 
     def tenant_id(self, tenant_id: str):
         self._tenant_id = tenant_id
@@ -69,6 +73,10 @@ class HTTPClientBuilder(object):
         self._schema = schema
         return self
 
+    def host_header(self, host: str):
+        self._host_header = host
+        return self
+
     def hosts(self, hosts: list):
         self._hosts = hosts
         return self
@@ -86,7 +94,13 @@ class HTTPClientBuilder(object):
         self._fill_hosts()
         self._fill_default()
         credential: Credential = self._build_volc_credential()
-        http_caller: _HTTPCaller = _HTTPCaller(self._tenant_id, self._token, self._use_air_auth, credential)
+        http_caller: _HTTPCaller = _HTTPCaller(
+            self._tenant_id,
+            self._host_header,
+            self._token,
+            self._use_air_auth,
+            credential
+        )
         return HTTPClient(self._schema, http_caller, self._host_availabler)
 
     def _check_required_field(self):
@@ -120,3 +134,7 @@ class HTTPClientBuilder(object):
 
     def _build_volc_credential(self) -> Credential:
         return Credential(self._ak, self._sk, _get_volc_credential_region(self._region), self._auth_service)
+
+
+def new_http_client_builder() -> _HTTPClientBuilder:
+    return _HTTPClientBuilder()

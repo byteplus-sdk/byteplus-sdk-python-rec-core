@@ -1,3 +1,5 @@
+from typing import Optional
+
 _REGION_UNKNOWN = ""
 
 
@@ -25,7 +27,7 @@ def register_region(region: str, region_config: RegionConfig):
     _region_config_map[region] = region_config
 
 
-def _get_region_config(region: str) -> RegionConfig:
+def _get_region_config(region: str) -> Optional[RegionConfig]:
     global _region_config_map
     if region in _region_config_map:
         return _region_config_map[region]
