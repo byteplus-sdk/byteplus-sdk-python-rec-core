@@ -1,4 +1,5 @@
 import copy
+import sys
 import threading
 
 _host_url_center_map: dict = {}
@@ -14,16 +15,13 @@ class _URLCenter(object):
     def get_url(self, path: str) -> str:
         while path.startswith("/"):
             path = path[1:]
-        url: str = None
-        if path in self._path_url_map:
-            url = self._path_url_map[path]
+        url: str = self._path_url_map.get(path)
         if url is not None:
             return url
 
         # ab + clone
         self._lock.acquire()
-        if path in self._path_url_map:
-            url = self._path_url_map[path]
+        url: str = self._path_url_map.get(path)
         if url is None:
             url = "{}/{}".format(self._url_format, path)
             path_url_map_copy = copy.deepcopy(self._path_url_map)
@@ -37,18 +35,21 @@ def _url_center_instance(schema: str, host: str) -> _URLCenter:
     global _host_url_center_map
     key: str = "{}_{}".format(schema, host)
     _url_center_lock.acquire()
-    url_center: _URLCenter = None
-    if key in _host_url_center_map:
-        url_center = _host_url_center_map[key]
+    url_center: _URLCenter = _host_url_center_map.get(key)
     _url_center_lock.release()
     if url_center is not None:
         return url_center
 
     _url_center_lock.acquire()
-    if key in _host_url_center_map:
-        url_center = _host_url_center_map[key]
+    url_center: _URLCenter = _host_url_center_map.get(key)
     if url_center is None:
         url_center: _URLCenter = _URLCenter(schema, host)
         _host_url_center_map[key] = url_center
     _url_center_lock.release()
     return url_center
+
+if __name__ == '__main__':
+    a = {}
+    b = 10
+    print(sys.getsizeof(a))
+    print(sys.getsizeof(b))
