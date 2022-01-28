@@ -1,14 +1,14 @@
-import json
-from typing import Optional, Any, Union
+from typing import Optional, Union, List
 
 from google.protobuf.message import Message
 
-from byteplus_rec_core.host_availabler import HostAvailabler, PingHostAvailabler, PingHostAvailablerConfig
+from byteplus_rec_core.host_availabler import HostAvailabler, _PingHostAvailabler, PingHostAvailablerConfig, \
+    new_ping_host_availabler
 from byteplus_rec_core.http_caller import _HTTPCaller
 from byteplus_rec_core.option import Option
 from byteplus_rec_core.region import _REGION_UNKNOWN, _get_region_config, _get_region_hosts, _get_volc_credential_region
 from byteplus_rec_core.url_center import _url_center_instance
-from byteplus_rec_core.volcauth.volcauth import Credential
+from byteplus_rec_core.volc_auth import _Credential
 
 
 class HTTPClient(object):
@@ -41,7 +41,7 @@ class _HTTPClientBuilder(object):
         self._use_air_auth: Optional[bool] = None
         self._schema: Optional[str] = None
         self._host_header: Optional[str] = None
-        self._hosts: Optional[list[str]] = None
+        self._hosts: Optional[List[str]] = None
         self._region: Optional[str] = None
         self._host_availabler: Optional[HostAvailabler] = None
 
@@ -93,14 +93,7 @@ class _HTTPClientBuilder(object):
         self._check_required_field()
         self._fill_hosts()
         self._fill_default()
-        credential: Credential = self._build_volc_credential()
-        http_caller: _HTTPCaller = _HTTPCaller(
-            self._tenant_id,
-            self._host_header,
-            self._token,
-            self._use_air_auth,
-            credential
-        )
+        http_caller: _HTTPCaller = self._new_http_caller()
         return HTTPClient(self._schema, http_caller, self._host_availabler)
 
     def _check_required_field(self):
@@ -120,20 +113,36 @@ class _HTTPClientBuilder(object):
             raise Exception("Ak or sk is empty")
 
     def _fill_hosts(self):
-        if self._hosts is None:
-            self._hosts = _get_region_hosts(self._region)
+        if self._hosts is not None:
+            return
+        self._hosts = _get_region_hosts(self._region)
 
     def _fill_default(self):
         if self._schema == "":
             self._schema = "https"
         if self._host_availabler is None:
-            config: PingHostAvailablerConfig = PingHostAvailablerConfig(self._hosts)
-            self._host_availabler = PingHostAvailabler(config)
+            config: PingHostAvailablerConfig = PingHostAvailablerConfig(self._hosts, self._host_header)
+            self._host_availabler: _PingHostAvailabler = new_ping_host_availabler(config)
         if self._host_availabler.hosts() is None or len(self._host_availabler.hosts()) == 0:
             self._host_availabler.set_hosts(self._hosts)
+        if self._host_availabler.host_header() is None or len(self._host_availabler.host_header()) == 0:
+            self._host_availabler.set_host_header(self._host_header)
 
-    def _build_volc_credential(self) -> Credential:
-        return Credential(self._ak, self._sk, _get_volc_credential_region(self._region), self._auth_service)
+    def _new_http_caller(self) -> _HTTPCaller:
+        credential: _Credential = _Credential(
+            self._ak,
+            self._sk,
+            _get_volc_credential_region(self._region),
+            self._auth_service
+        )
+        http_caller: _HTTPCaller = _HTTPCaller(
+            self._tenant_id,
+            self._host_header,
+            self._token,
+            self._use_air_auth,
+            credential
+        )
+        return http_caller
 
 
 def new_http_client_builder() -> _HTTPClientBuilder:

@@ -2,6 +2,7 @@ from abc import abstractmethod
 import logging
 import threading
 import time
+from typing import List, Optional, Dict
 
 import requests
 from requests import Response
@@ -22,11 +23,19 @@ class HostAvailabler(object):
         raise NotImplementedError
 
     @abstractmethod
-    def hosts(self) -> list:
+    def hosts(self) -> Optional[List[str]]:
         raise NotImplementedError
 
     @abstractmethod
-    def set_hosts(self, hosts: list):
+    def host_header(self) -> Optional[str]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_hosts(self, hosts: List[str]):
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_host_header(self, host_header: Optional[str]):
         raise NotImplementedError
 
     @abstractmethod
@@ -39,13 +48,15 @@ class HostAvailabler(object):
 
 
 class PingHostAvailablerConfig(object):
-    def __init__(self, hosts: list,
+    def __init__(self, hosts: Optional[List[str]],
+                 host_header: Optional[str] = None,
                  ping_url_format=_DEFAULT_PING_URL_FORMAT,
                  window_size=_DEFAULT_WINDOW_SIZE,
                  failure_rate_threshold=_DEFAULT_FAILURE_RATE_THRESHOLD,
                  ping_interval_seconds=_DEFAULT_PING_INTERVAL_SECONDS,
                  ping_timeout_seconds=_DEFAULT_PING_TIMEOUT_SECONDS):
         self.hosts = hosts
+        self.host_header = host_header
         self.ping_url_format = ping_url_format
         self.window_size = window_size
         self.failure_rate_threshold = failure_rate_threshold
@@ -53,27 +64,33 @@ class PingHostAvailablerConfig(object):
         self.ping_timeout_seconds = ping_timeout_seconds
 
 
-class PingHostAvailabler(HostAvailabler):
+class _PingHostAvailabler(HostAvailabler):
     def __init__(self, config: PingHostAvailablerConfig):
         self._config: PingHostAvailablerConfig = config
-        self._available_hosts: list = config.hosts
+        self._available_hosts: List[str] = config.hosts
         if len(config.hosts) <= 1:
             return
-        self._host_window_map: dict = {}
+        self._host_window_map: Dict[str, _Window] = {}
         self._abort: bool = False
         for host in config.hosts:
             self._host_window_map[host] = _Window(config.window_size)
         threading.Thread(target=self._start_schedule).start()
         return
 
-    def get_available_hosts(self) -> list:
+    def get_available_hosts(self) -> List[str]:
         return self._available_hosts
 
-    def hosts(self) -> list:
+    def hosts(self) -> Optional[List[str]]:
         return self._config.hosts
 
-    def set_hosts(self, hosts: list):
+    def host_header(self) -> Optional[str]:
+        return self._config.host_header
+
+    def set_hosts(self, hosts: List[str]):
         self._config.hosts = hosts
+
+    def set_host_header(self, host_header: Optional[str]):
+        self._config.host_header = host_header
 
     def get_host(self) -> str:
         return self._available_hosts[0]
@@ -87,14 +104,11 @@ class PingHostAvailabler(HostAvailabler):
         # log.debug("[ByteplusSDK] http")
         self._check_host()
         # a timer only execute once after spec duration
-        timer = threading.Timer(self.config.ping_interval_seconds, self._start_schedule)
+        timer = threading.Timer(self._config.ping_interval_seconds, self._start_schedule)
         timer.start()
         return
 
     def _check_host(self) -> None:
-        self._do_check_host()
-
-    def _do_check_host(self) -> None:
         available_hosts = []
         for host in self._config.hosts:
             window = self._host_window_map[host]
@@ -113,8 +127,11 @@ class PingHostAvailabler(HostAvailabler):
     def _ping(self, host) -> bool:
         url: str = self._config.ping_url_format.format(host)
         start = time.time()
+        headers = None
+        if self._config.host_header is not None and len(self._config.host_header) > 0:
+            headers = {"Host": self._config.host_header}
         try:
-            rsp: Response = requests.get(url, timeout=self._config.ping_timeout_seconds)
+            rsp: Response = requests.get(url, headers=headers, timeout=self._config.ping_timeout_seconds)
         except BaseException as e:
             log.warning("[ByteplusSDK] ping find err, host:'%s' err:'%s'", host, e)
             return False
@@ -122,6 +139,10 @@ class PingHostAvailabler(HostAvailabler):
             cost = int((time.time() - start) * 1000)
             log.debug("[ByteplusSDK] http path:%s, cost:%dms", url, cost)
         return rsp.status_code == _PING_SUCCESS_HTTP_CODE
+
+
+def new_ping_host_availabler(config: PingHostAvailablerConfig) -> _PingHostAvailabler:
+    return _PingHostAvailabler(config)
 
 
 class _Window(object):

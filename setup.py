@@ -35,6 +35,7 @@ setup(
     author_email=about['__author_email__'],
     url=about['__url__'],
     packages=find_packages(),
+    include_package_data=True,
     python_requires=">=3",
     install_requires=install_requires,
     license=about['__license__'],

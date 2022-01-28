@@ -1,10 +1,10 @@
-from typing import Optional
+from typing import Optional, List
 
 _REGION_UNKNOWN = ""
 
 
 class RegionConfig(object):
-    def __init__(self, hosts: list, volc_credential_region: str):
+    def __init__(self, hosts: List[str], volc_credential_region: str):
         self._hosts = hosts
         self._volc_credential_region = volc_credential_region
 
@@ -34,7 +34,7 @@ def _get_region_config(region: str) -> Optional[RegionConfig]:
     return None
 
 
-def _get_region_hosts(region: str) -> list:
+def _get_region_hosts(region: str) -> List[str]:
     global _region_config_map
     return _region_config_map[region].hosts
 
