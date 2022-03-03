@@ -137,7 +137,6 @@ class AbstractHostAvailabler(HostAvailabler):
             log.error("[ByteplusSDK] scoring hosts return an empty list")
             return
         new_host_config: Dict[str, List[str]] = self._copy_and_sort_host(host_config, new_host_scores)
-        log.warning("new_host_config:'%s', new_host_scores:'%s'", new_host_config, new_host_scores)
         if self._is_server_host_not_update(new_host_config):
             log.debug("[ByteplusSDK] host order is not changed, '%s'", new_host_config)
             return
