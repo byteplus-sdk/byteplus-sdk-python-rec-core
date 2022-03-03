@@ -1,3 +1,5 @@
+HTTP_STATUS_OK: int = 200
+HTTP_STATUS_NOT_FOUND: int = 404
 # The request was executed successfully without any exception
 STATUS_CODE_SUCCESS: int = 0
 # A Request with the same "Request-ID" was already received. This Request was rejected

@@ -1,8 +1,8 @@
 from typing import Optional, Union, List
-
+import logging
 from google.protobuf.message import Message
-
-from byteplus_rec_core.host_availabler import HostAvailabler, _PingHostAvailabler, PingHostAvailablerConfig, \
+from byteplus_rec_core.host_availabler import HostAvailabler
+from byteplus_rec_core.ping_host_availabler import _PingHostAvailabler, PingHostAvailablerConfig, \
     new_ping_host_availabler
 from byteplus_rec_core.http_caller import _HTTPCaller
 from byteplus_rec_core.option import Option
@@ -10,25 +10,33 @@ from byteplus_rec_core.region import _REGION_UNKNOWN, _get_region_config, _get_r
 from byteplus_rec_core.url_center import _url_center_instance
 from byteplus_rec_core.volc_auth import _Credential
 
+log = logging.getLogger(__name__)
+
 
 class HTTPClient(object):
-    def __init__(self, schema: str, http_caller: _HTTPCaller, host_availabler: HostAvailabler):
+    def __init__(self, schema: str, http_caller: _HTTPCaller, host_availabler: HostAvailabler, project_id: str):
         self._schema = schema
         self._http_caller = http_caller
         self._host_availabler = host_availabler
+        self._project_id = project_id
 
     def do_json_request(self, path: str, request: Union[dict, list], *opts: Option) -> Union[dict, list]:
-        host: str = self._host_availabler.get_host()
+        host: str = self.get_host(path)
         url: str = _url_center_instance(self._schema, host).get_url(path)
         return self._http_caller.do_json_request(url, request, *opts)
 
     def do_pb_request(self, path: str, request: Message, response: Message, *opts: Option):
-        host: str = self._host_availabler.get_host()
+        host: str = self.get_host(path)
         url: str = _url_center_instance(self._schema, host).get_url(path)
         self._http_caller.do_pb_request(url, request, response, *opts)
 
     def shutdown(self):
         self._host_availabler.shutdown()
+
+    def get_host(self, path: str):
+        if self._project_id == "":
+            return self._host_availabler.get_host()
+        return self._host_availabler.get_host_by_path(path)
 
 
 class _HTTPClientBuilder(object):
@@ -38,12 +46,14 @@ class _HTTPClientBuilder(object):
         self._ak: Optional[str] = None
         self._sk: Optional[str] = None
         self._auth_service: Optional[str] = None
+        self._auth_service: Optional[str] = None
         self._use_air_auth: Optional[bool] = None
         self._schema: Optional[str] = None
         self._host_header: Optional[str] = None
         self._hosts: Optional[List[str]] = None
         self._region: Optional[str] = None
         self._host_availabler: Optional[HostAvailabler] = None
+        self._project_id: Optional[str] = None
 
     def tenant_id(self, tenant_id: str):
         self._tenant_id = tenant_id
@@ -77,6 +87,10 @@ class _HTTPClientBuilder(object):
         self._host_header = host
         return self
 
+    def project_id(self, project_id: str):
+        self._project_id = project_id
+        return self
+
     def hosts(self, hosts: list):
         self._hosts = hosts
         return self
@@ -94,7 +108,7 @@ class _HTTPClientBuilder(object):
         self._fill_hosts()
         self._fill_default()
         http_caller: _HTTPCaller = self._new_http_caller()
-        return HTTPClient(self._schema, http_caller, self._host_availabler)
+        return HTTPClient(self._schema, http_caller, self._host_availabler, self._project_id)
 
     def _check_required_field(self):
         if len(self._tenant_id) == 0:
@@ -121,12 +135,10 @@ class _HTTPClientBuilder(object):
         if self._schema == "":
             self._schema = "https"
         if self._host_availabler is None:
-            config: PingHostAvailablerConfig = PingHostAvailablerConfig(self._hosts, self._host_header)
+            config: PingHostAvailablerConfig = PingHostAvailablerConfig(default_hosts=self._hosts,
+                                                                        host_header=self._host_header,
+                                                                        project_id=self._project_id)
             self._host_availabler: _PingHostAvailabler = new_ping_host_availabler(config)
-        if self._host_availabler.hosts() is None or len(self._host_availabler.hosts()) == 0:
-            self._host_availabler.set_hosts(self._hosts)
-        if self._host_availabler.host_header() is None or len(self._host_availabler.host_header()) == 0:
-            self._host_availabler.set_host_header(self._host_header)
 
     def _new_http_caller(self) -> _HTTPCaller:
         credential: _Credential = _Credential(

@@ -143,6 +143,7 @@ class _HTTPCaller(object):
             if timeout is not None:
                 timeout_secs = timeout.total_seconds()
                 rsp: Response = requests.post(url=url, headers=headers, data=req_bytes, timeout=timeout_secs, auth=auth_func)
+                # TODO check content type: response.header("Content-Encoding")
             else:
                 rsp: Response = requests.post(url=url, headers=headers, data=req_bytes, auth=auth_func)
         except BaseException as e:
