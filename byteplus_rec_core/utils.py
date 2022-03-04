@@ -1,5 +1,6 @@
 from datetime import timedelta
 import logging
+from typing import List
 
 log = logging.getLogger(__name__)
 from byteplus_rec_core.exception import NetException, BizException
@@ -31,7 +32,24 @@ def do_with_retry(call, request, opts: tuple, retry_times: int):
     return
 
 
-def build_url(schema: str, host: str, path: str):
+def build_url(schema: str, host: str, path: str) -> str:
     if path[0] == '/':
         return "{}://{}{}".format(schema, host, path)
     return "{}://{}/{}".format(schema, host, path)
+
+
+def is_all_empty_str(st: List[str]) -> bool:
+    if str is None:
+        return True
+    for s in st:
+        if s is not None and len(s) > 0:
+            return False
+    return True
+
+
+def is_empty_str(st: str) -> bool:
+    return st is None or len(st) == 0
+
+
+def is_empty_list(li: List[any]) -> bool:
+    return li is None or len(li) == 0

@@ -7,7 +7,7 @@ import random
 import string
 import time
 import uuid
-from typing import Callable, Optional, Union
+from typing import Optional, Union
 
 import requests
 from byteplus_rec_core import constant
@@ -18,7 +18,7 @@ from byteplus_rec_core.exception import BizException, NetException
 from byteplus_rec_core.option import Option
 from byteplus_rec_core.options import Options
 from byteplus_rec_core.utils import _milliseconds
-from byteplus_rec_core.volc_auth import _Credential, _volc_sign
+from byteplus_rec_core.auth import _Credential, _sign
 
 log = logging.getLogger(__name__)
 
@@ -40,26 +40,19 @@ class _HTTPCaller(object):
         req_str: str = json.dumps(request)
         req_bytes: bytes = req_str.encode("utf-8")
         content_type: str = "application/json"
-        rsp_bytes = self.do_request(url, req_bytes, content_type, options)
+        rsp_bytes = self._do_http_request(url, req_bytes, content_type, options)
         return json.loads(rsp_bytes)
 
     def do_pb_request(self, url: str, request: Message, response: Message, *opts: Option):
         options: Options = Option.conv_to_options(opts)
         req_bytes: bytes = request.SerializeToString()
         content_type: str = "application/x-protobuf"
-        rsp_bytes = self.do_request(url, req_bytes, content_type, options)
+        rsp_bytes = self._do_http_request(url, req_bytes, content_type, options)
         try:
             response.ParseFromString(rsp_bytes)
         except BaseException as e:
             log.error("[ByteplusSDK] parse response fail, err:%s url:%s", e, url)
             raise BizException("parse response fail")
-
-    def do_request(self, url, req_bytes, content_type, options: Options) -> bytes:
-        req_bytes: bytes = gzip.compress(req_bytes)
-        headers: dict = self._build_headers(options, content_type)
-        url = self._build_url_with_queries(options, url)
-        auth_func = self._get_auth_func(req_bytes)
-        return self._do_http_request(url, headers, req_bytes, options.timeout, auth_func)
 
     def _build_headers(self, options: Options, content_type: str) -> dict:
         headers = {
@@ -102,20 +95,20 @@ class _HTTPCaller(object):
         if options.server_timeout is not None:
             headers["Timeout-Millis"] = str(_milliseconds(options.server_timeout))
 
-    def _get_auth_func(self, req_bytes: bytes) -> Callable:
+    def _with_auth_headers(self, header: dict, url: str, method: str, req_bytes: bytes):
         if self._use_air_auth:
-            return lambda req: self._with_air_auth_headers(req, req_bytes)
-        return _volc_sign(self._credential)
+            self._with_air_auth_headers(header, req_bytes)
+            return
+        url = _sign(header, url, req_bytes, method, self._credential)
+        return url
 
-    def _with_air_auth_headers(self, req, req_bytes: bytes) -> None:
+    def _with_air_auth_headers(self, header: dict, req_bytes: bytes) -> None:
         ts = str(int(time.time()))
         nonce = ''.join(random.sample(string.ascii_letters + string.digits, 8))
         signature = self._cal_signature(req_bytes, ts, nonce)
-        req.headers['Tenant-Id'] = self._tenant_id
-        req.headers['Tenant-Ts'] = ts
-        req.headers['Tenant-Nonce'] = nonce
-        req.headers['Tenant-Signature'] = signature
-        return req
+        header['Tenant-Ts'] = ts
+        header['Tenant-Nonce'] = nonce
+        header['Tenant-Signature'] = signature
 
     def _cal_signature(self, req_bytes: bytes, ts: str, nonce: str) -> str:
         sha256 = hashlib.sha256()
@@ -128,20 +121,22 @@ class _HTTPCaller(object):
 
     def _do_http_request(self,
                          url: str,
-                         headers: dict,
                          req_bytes: bytes,
-                         timeout: Optional[datetime.timedelta],
-                         auth_func: Callable) -> Optional[bytes]:
+                         content_type: str,
+                         options: Options) -> Optional[bytes]:
+        headers: dict = self._build_headers(options, content_type)
+        req_bytes: bytes = gzip.compress(req_bytes)
+        url = self._with_auth_headers(headers, self._build_url_with_queries(options, url), constant.POST_METHOD_NAME,
+                                      req_bytes)
+
         start = time.time()
         log.debug("[ByteplusSDK][HTTPCaller] URL:%s, Request Headers:\n%s", url, str(headers))
         try:
-            if timeout is not None:
-                timeout_secs = timeout.total_seconds()
-                rsp: Response = requests.post(url=url, headers=headers, data=req_bytes, timeout=timeout_secs, auth=auth_func)
+            if options.timeout is not None:
+                timeout_secs = options.timeout.total_seconds()
+                rsp: Response = requests.post(url=url, headers=headers, data=req_bytes, timeout=timeout_secs)
             else:
-                rsp: Response = requests.post(url=url, headers=headers, data=req_bytes, auth=auth_func)
-            if rsp is None:
-                return None
+                rsp: Response = requests.post(url=url, headers=headers, data=req_bytes)
             if rsp.status_code != constant.HTTP_STATUS_OK:
                 self._log_err_http_rsp(url, rsp)
                 raise BizException("code:{} msg:{}".format(rsp.status_code, rsp.reason))

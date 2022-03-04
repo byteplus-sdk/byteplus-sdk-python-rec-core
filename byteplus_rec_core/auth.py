@@ -40,43 +40,41 @@ def _timestamp_v4() -> str:
     return _now().strftime(_TIME_FORMAT_V4)
 
 
-def _prepare_request_v4(req):
+def _prepare_request_v4(headers: dict, url: str):
     necessary_defaults: Dict[str, str] = {
         "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
         "X-Date": _timestamp_v4()
     }
     for header, value in necessary_defaults.items():
-        if len(req.headers.get(header, "")) == 0:
-            req.headers[header] = value
+        if len(headers.get(header, "")) == 0:
+            headers[header] = value
 
-    path = urlparse(req.url).path
+    path = urlparse(url).path
     if len(path) == 0:
-        req.url = req.url + "/"
+        return url + "/"
+    return url
 
 
-def _volc_sign(cred: _Credential):
-    def auth(req):
-        _prepare_request_v4(req)
-        meta: _Metadata = _Metadata(cred.service, cred.region)
+def _sign(header: dict, url: str, body: bytes, method: str, cred: _Credential):
+    url = _prepare_request_v4(header, url)
+    meta: _Metadata = _Metadata(cred.service, cred.region)
 
-        # Task1
-        hashed_canon_req: str = _hashed_canonical_request_v4(req, meta)
+    # Task1
+    hashed_canon_req: str = _hashed_canonical_request_v4(header, url, body, method, meta)
 
-        # Task2
-        string_to_sign_ret: str = _string_to_sign(req, hashed_canon_req, meta)
+    # Task2
+    string_to_sign_ret: str = _string_to_sign(header, hashed_canon_req, meta)
 
-        # Task3
-        signing_key_ret = _signing_key(cred.secret_access_key, meta.date, meta.region, meta.service)
-        signature_ret = _signature(signing_key_ret, string_to_sign_ret)
+    # Task3
+    signing_key_ret = _signing_key(cred.secret_access_key, meta.date, meta.region, meta.service)
+    signature_ret = _signature(signing_key_ret, string_to_sign_ret)
 
-        req.headers["Authorization"] = _build_auth_header(signature_ret, meta, cred)
+    header["Authorization"] = _build_auth_header(signature_ret, meta, cred)
 
-        if cred.session_token:
-            req.headers['X-Security-Token'] = cred.session_token
+    if cred.session_token:
+        header['X-Security-Token'] = cred.session_token
 
-        return req
-
-    return auth
+    return url
 
 
 def _build_auth_header(signature_ret: str, meta: _Metadata, cred: _Credential) -> str:
@@ -88,19 +86,19 @@ def _build_auth_header(signature_ret: str, meta: _Metadata, cred: _Credential) -
            signature_ret
 
 
-def _hashed_canonical_request_v4(req, meta: _Metadata) -> str:
-    parse_result = urlparse(req.url)
+def _hashed_canonical_request_v4(header: dict, url: str, body: bytes, method: str, meta: _Metadata) -> str:
+    parse_result = urlparse(url)
     # encode body and generate body hash
-    if req.body is not None:
-        content_hash = hashlib.sha256(req.body)
+    if body is not None:
+        content_hash = hashlib.sha256(body)
     else:
         content_hash = hashlib.sha256(b'')
-    req.headers["X-Content-Sha256"] = content_hash.hexdigest()
-    req.headers["Host"] = parse_result.netloc
+    header["X-Content-Sha256"] = content_hash.hexdigest()
+    header["Host"] = parse_result.netloc
 
     sorted_headers: List[Tuple[str, str]] = []
     allowed_headers = ("content-type", "content-md5", "host")
-    for key, value in req.headers.items():
+    for key, value in header.items():
         key_lower = key.lower()
         if key_lower in allowed_headers or key_lower.startswith("x-"):
             sorted_headers.append((key_lower, value.strip()))
@@ -124,7 +122,7 @@ def _hashed_canonical_request_v4(req, meta: _Metadata) -> str:
     query_str: str = urlencode(sorted_queries)
 
     safe_chars = '/~'
-    req_parts = [req.method.upper(), quote(parse_result.path, safe_chars), _normal_query(query_str), headers_to_sign,
+    req_parts = [method.upper(), quote(parse_result.path, safe_chars), _normal_query(query_str), headers_to_sign,
                  meta.signed_headers, content_hash.hexdigest()]
     canonical_request = '\n'.join(req_parts)
 
@@ -135,8 +133,8 @@ def _normal_query(query_str: str) -> str:
     return query_str.replace("+", "%20", -1)
 
 
-def _string_to_sign(req, hashed_canon_req: str, meta: _Metadata) -> str:
-    request_ts = req.headers.get("X-Date")
+def _string_to_sign(header: dict, hashed_canon_req: str, meta: _Metadata) -> str:
+    request_ts = header.get("X-Date")
     meta.algorithm = "HMAC-SHA256"
     meta.date = _ts_date(request_ts)
     meta.credential_scope = "/".join([meta.date, meta.region, meta.service, "request"])

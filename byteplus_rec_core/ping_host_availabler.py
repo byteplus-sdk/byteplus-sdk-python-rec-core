@@ -5,8 +5,7 @@ from typing import List, Optional, Dict
 import requests
 from byteplus_rec_core import constant
 from requests import Response
-from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler, AbstractHostAvailablerConfig, \
-    HostAvailabilityScore
+from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler, HostAvailabilityScore
 
 log = logging.getLogger(__name__)
 
@@ -18,7 +17,7 @@ _DEFAULT_PING_TIMEOUT_SECONDS: float = 0.3
 _PING_SUCCESS_HTTP_CODE = 200
 
 
-class PingHostAvailablerConfig(AbstractHostAvailablerConfig):
+class PingHostAvailablerConfig(object):
     def __init__(self, default_hosts: Optional[List[str]] = None,
                  score: Optional[str] = None,
                  project_id: Optional[str] = None,
@@ -29,7 +28,11 @@ class PingHostAvailablerConfig(AbstractHostAvailablerConfig):
                  failure_rate_threshold=_DEFAULT_FAILURE_RATE_THRESHOLD,
                  ping_interval_seconds=_DEFAULT_PING_INTERVAL_SECONDS,
                  ping_timeout_seconds=_DEFAULT_PING_TIMEOUT_SECONDS):
-        super().__init__(default_hosts, score, project_id, fetch_hosts_from_server, host_config)
+        self.default_hosts = default_hosts
+        self.score = score
+        self.project_id = project_id
+        self.fetch_hosts_from_server = fetch_hosts_from_server
+        self.host_config = host_config
         self.ping_url_format = ping_url_format
         self.window_size = window_size
         if window_size < 0:
@@ -41,9 +44,8 @@ class PingHostAvailablerConfig(AbstractHostAvailablerConfig):
 
 class _PingHostAvailabler(AbstractHostAvailabler):
     def __init__(self, config: PingHostAvailablerConfig):
-        super().__init__(config, False)
         self._config: PingHostAvailablerConfig = config
-        super().init()
+        super().__init__(self._config.project_id, self._config.default_hosts)
         self._host_window_map: Dict[str, _Window] = {}
         for host in config.default_hosts:
             self._host_window_map[host] = _Window(config.window_size)
@@ -62,18 +64,6 @@ class _PingHostAvailabler(AbstractHostAvailabler):
             success = self._ping(host)
             window.put(success)
             host_availability_scores.append(HostAvailabilityScore(host, 1 - window.failure_rate()))
-
-    def set_hosts(self, hosts: List[str]):
-        super().set_hosts(hosts)
-
-    def get_host(self) -> str:
-        return super().get_host()
-
-    def get_host_by_path(self, path: str) -> str:
-        return super().get_host_by_path(path)
-
-    def shutdown(self):
-        self._abort = True
 
     def _ping(self, host) -> bool:
         url: str = self._config.ping_url_format.format(host)

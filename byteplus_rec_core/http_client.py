@@ -2,20 +2,21 @@ from typing import Optional, Union, List
 import logging
 
 from google.protobuf.message import Message
-from byteplus_rec_core.host_availabler import HostAvailabler
+
+from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler
 from byteplus_rec_core.ping_host_availabler import _PingHostAvailabler, PingHostAvailablerConfig, \
     new_ping_host_availabler
 from byteplus_rec_core.http_caller import _HTTPCaller
 from byteplus_rec_core.option import Option
 from byteplus_rec_core.abstract_region import AbstractRegion
-from byteplus_rec_core.volc_auth import _Credential
+from byteplus_rec_core.auth import _Credential
 from byteplus_rec_core import utils
 
 log = logging.getLogger(__name__)
 
 
 class HTTPClient(object):
-    def __init__(self, http_caller: _HTTPCaller, host_availabler: HostAvailabler, schema: str, project_id: str):
+    def __init__(self, http_caller: _HTTPCaller, host_availabler: AbstractHostAvailabler, schema: str, project_id: str):
         self._http_caller = http_caller
         self._host_availabler = host_availabler
         self._schema = schema
@@ -28,7 +29,8 @@ class HTTPClient(object):
         return self._http_caller.do_json_request(self._build_url(path), request, *opts)
 
     def _build_url(self, path: str):
-        host: str = self._host_availabler.get_host_by_path(path)
+        host: str = self._host_availabler.get_host(path)
+        log.info("host: '%s', path: '%s'", host, path)
         return utils.build_url(self._schema, host, path)
 
     def shutdown(self):
@@ -47,7 +49,7 @@ class _HTTPClientBuilder(object):
         self._schema: Optional[str] = None
         self._hosts: Optional[List[str]] = None
         self._region: Optional[AbstractRegion] = None
-        self._host_availabler: Optional[HostAvailabler] = None
+        self._host_availabler: Optional[AbstractHostAvailabler] = None
 
     def tenant_id(self, tenant_id: str):
         self._tenant_id = tenant_id
