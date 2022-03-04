@@ -1,6 +1,9 @@
-from datetime import timedelta, datetime
+from datetime import timedelta
+import logging
 
+log = logging.getLogger(__name__)
 from byteplus_rec_core.exception import NetException, BizException
+
 
 def _milliseconds(delta: timedelta) -> int:
     return int(delta.total_seconds() * 1000.0)
@@ -21,7 +24,14 @@ def do_with_retry(call, request, opts: tuple, retry_times: int):
             rsp = call(request, *opts)
         except NetException as e:
             if i == try_times - 1:
+                log.error("[DoRetryRequest] fail finally after retried '%s' times", try_times)
                 raise BizException(str(e))
             continue
         return rsp
     return
+
+
+def build_url(schema: str, host: str, path: str):
+    if path[0] == '/':
+        return "{}://{}{}".format(schema, host, path)
+    return "{}://{}/{}".format(schema, host, path)

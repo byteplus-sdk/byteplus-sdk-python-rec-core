@@ -1,19 +1,11 @@
 from abc import abstractmethod
-from typing import List, Optional
+from typing import List
 
 
 class HostAvailabler(object):
 
     @abstractmethod
-    def host_header(self) -> Optional[str]:
-        raise NotImplementedError
-
-    @abstractmethod
     def set_hosts(self, hosts: List[str]):
-        raise NotImplementedError
-
-    @abstractmethod
-    def set_host_header(self, host_header: Optional[str]):
         raise NotImplementedError
 
     @abstractmethod

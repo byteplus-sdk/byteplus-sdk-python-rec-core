@@ -20,7 +20,6 @@ _PING_SUCCESS_HTTP_CODE = 200
 
 class PingHostAvailablerConfig(AbstractHostAvailablerConfig):
     def __init__(self, default_hosts: Optional[List[str]] = None,
-                 host_header: Optional[str] = None,
                  score: Optional[str] = None,
                  project_id: Optional[str] = None,
                  fetch_hosts_from_server: bool = False,
@@ -30,7 +29,7 @@ class PingHostAvailablerConfig(AbstractHostAvailablerConfig):
                  failure_rate_threshold=_DEFAULT_FAILURE_RATE_THRESHOLD,
                  ping_interval_seconds=_DEFAULT_PING_INTERVAL_SECONDS,
                  ping_timeout_seconds=_DEFAULT_PING_TIMEOUT_SECONDS):
-        super().__init__(default_hosts, host_header, score, project_id, fetch_hosts_from_server, host_config)
+        super().__init__(default_hosts, score, project_id, fetch_hosts_from_server, host_config)
         self.ping_url_format = ping_url_format
         self.window_size = window_size
         if window_size < 0:
@@ -48,7 +47,6 @@ class _PingHostAvailabler(AbstractHostAvailabler):
         self._host_window_map: Dict[str, _Window] = {}
         for host in config.default_hosts:
             self._host_window_map[host] = _Window(config.window_size)
-        # threading.Thread(target=self._start_schedule).start()
         return
 
     def do_score_hosts(self, hosts: List[str]) -> List[HostAvailabilityScore]:
@@ -65,14 +63,8 @@ class _PingHostAvailabler(AbstractHostAvailabler):
             window.put(success)
             host_availability_scores.append(HostAvailabilityScore(host, 1 - window.failure_rate()))
 
-    def host_header(self) -> Optional[str]:
-        return self._config.host_header
-
     def set_hosts(self, hosts: List[str]):
         super().set_hosts(hosts)
-
-    def set_host_header(self, host_header: Optional[str]):
-        self._config.host_header = host_header
 
     def get_host(self) -> str:
         return super().get_host()
@@ -86,11 +78,8 @@ class _PingHostAvailabler(AbstractHostAvailabler):
     def _ping(self, host) -> bool:
         url: str = self._config.ping_url_format.format(host)
         start = time.time()
-        headers = None
-        if self._config.host_header is not None and len(self._config.host_header) > 0:
-            headers = {"Host": self._config.host_header}
         try:
-            rsp: Response = requests.get(url, headers=headers, timeout=self._config.ping_timeout_seconds)
+            rsp: Response = requests.get(url, headers=None, timeout=self._config.ping_timeout_seconds)
             cost = int((time.time() - start) * 1000)
             if self._is_ping_success(rsp):
                 log.debug("[ByteplusSDK] ping success, host:'%s' cost:'%s' ms", host, cost)

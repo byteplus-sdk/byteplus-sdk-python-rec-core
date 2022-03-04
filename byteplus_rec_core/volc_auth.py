@@ -8,11 +8,11 @@ _TIME_FORMAT_V4 = "%Y%m%dT%H%M%SZ"
 
 
 class _Credential(object):
-    def __init__(self, ak: str, sk: str, region: str, service: str, session_token: Optional[str] = None):
+    def __init__(self, ak: str, sk: str, service: str, region: str, session_token: Optional[str] = None):
         self.access_key_id = ak
         self.secret_access_key = sk
-        self.region = region
         self.service = service
+        self.region = region
         self.session_token = session_token
 
 

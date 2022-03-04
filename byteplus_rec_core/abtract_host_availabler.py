@@ -6,11 +6,12 @@ import threading
 import time
 from typing import List, Optional, Dict
 
+import requests
+from requests import Response
+
 from byteplus_rec_core.exception import BizException
 from byteplus_rec_core.host_availabler import HostAvailabler
 from byteplus_rec_core import constant
-import requests
-from requests import Response
 
 log = logging.getLogger(__name__)
 
@@ -30,14 +31,12 @@ class HostAvailabilityScore:
 
 class AbstractHostAvailablerConfig(object):
     def __init__(self, default_hosts: Optional[List[str]] = None,
-                 host_header: Optional[str] = None,
                  score: Optional[str] = None,
                  project_id: Optional[str] = None,
                  fetch_hosts_from_server: bool = False,
                  host_config: Optional[Dict[str, List[str]]] = None):
         self.default_hosts = default_hosts
         self.score = score,
-        self.host_header = host_header
         self.project_id = project_id,
         self.fetch_hosts_from_server = fetch_hosts_from_server
         self.host_config = host_config
@@ -94,8 +93,6 @@ class AbstractHostAvailabler(HostAvailabler):
     def _do_fetch_hosts_from_server(self, url: str) -> Dict[str, List[str]]:
         start = time.time()
         headers = None
-        if self._config.host_header is not None and len(self._config.host_header) > 0:
-            headers = {"Host": self._config.host_header}
         try:
             rsp: Response = requests.get(url, headers=headers, timeout=10)
             cost = int((time.time() - start) * 1000)
@@ -154,7 +151,8 @@ class AbstractHostAvailabler(HostAvailabler):
     def do_score_hosts(self, hosts: List[str]) -> List[HostAvailabilityScore]:
         raise NotImplementedError
 
-    def _copy_and_sort_host(self, host_config: Dict[str, List[str]], new_host_scores: List[HostAvailabilityScore]) -> Dict[str, List[str]]:
+    def _copy_and_sort_host(self, host_config: Dict[str, List[str]], new_host_scores: List[HostAvailabilityScore]) -> \
+            Dict[str, List[str]]:
         host_score_index = {}
         for host_score in new_host_scores:
             host_score_index[host_score.host] = host_score.score
