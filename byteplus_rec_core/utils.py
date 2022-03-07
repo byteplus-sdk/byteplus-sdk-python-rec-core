@@ -2,8 +2,9 @@ from datetime import timedelta
 import logging
 from typing import List
 
-log = logging.getLogger(__name__)
 from byteplus_rec_core.exception import NetException, BizException
+
+log = logging.getLogger(__name__)
 
 
 def _milliseconds(delta: timedelta) -> int:
@@ -38,6 +39,15 @@ def build_url(schema: str, host: str, path: str) -> str:
     return "{}://{}/{}".format(schema, host, path)
 
 
+def none_empty_str(st: List[str]) -> bool:
+    if str is None:
+        return False
+    for s in st:
+        if s is None or len(s) == 0:
+            return False
+    return True
+
+
 def is_all_empty_str(st: List[str]) -> bool:
     if str is None:
         return True
@@ -51,5 +61,13 @@ def is_empty_str(st: str) -> bool:
     return st is None or len(st) == 0
 
 
-def is_empty_list(li: List[any]) -> bool:
-    return li is None or len(li) == 0
+class HTTPRequest(object):
+    def __init__(self,
+                 header: dict,
+                 url: str,
+                 method: str,
+                 req_bytes: bytes):
+        self.header: dict = header
+        self.url: str = url
+        self.method: str = method
+        self.req_bytes: bytes = req_bytes

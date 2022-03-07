@@ -4,6 +4,8 @@ import hmac
 from typing import Dict, Optional, List, Tuple
 from urllib.parse import urlparse, parse_qsl, urlencode, quote
 
+from byteplus_rec_core.utils import HTTPRequest
+
 _TIME_FORMAT_V4 = "%Y%m%dT%H%M%SZ"
 
 
@@ -32,7 +34,7 @@ class _Metadata(object):
         self.date = date
 
 
-def _now() -> int:
+def _now() -> datetime.datetime:
     return datetime.datetime.utcnow()
 
 
@@ -40,41 +42,38 @@ def _timestamp_v4() -> str:
     return _now().strftime(_TIME_FORMAT_V4)
 
 
-def _prepare_request_v4(headers: dict, url: str):
+def _prepare_request_v4(req: HTTPRequest):
     necessary_defaults: Dict[str, str] = {
         "Content-Type": "application/x-www-form-urlencoded; charset=utf-8",
         "X-Date": _timestamp_v4()
     }
     for header, value in necessary_defaults.items():
-        if len(headers.get(header, "")) == 0:
-            headers[header] = value
+        if len(req.header.get(header, "")) == 0:
+            req.header[header] = value
 
-    path = urlparse(url).path
+    path = urlparse(req.url).path
     if len(path) == 0:
-        return url + "/"
-    return url
+        req.url = req.url + "/"
 
 
-def _sign(header: dict, url: str, body: bytes, method: str, cred: _Credential):
-    url = _prepare_request_v4(header, url)
+def _sign(req: HTTPRequest, cred: _Credential):
+    _prepare_request_v4(req)
     meta: _Metadata = _Metadata(cred.service, cred.region)
 
     # Task1
-    hashed_canon_req: str = _hashed_canonical_request_v4(header, url, body, method, meta)
+    hashed_canon_req: str = _hashed_canonical_request_v4(req, meta)
 
     # Task2
-    string_to_sign_ret: str = _string_to_sign(header, hashed_canon_req, meta)
+    string_to_sign_ret: str = _string_to_sign(req.header, hashed_canon_req, meta)
 
     # Task3
     signing_key_ret = _signing_key(cred.secret_access_key, meta.date, meta.region, meta.service)
     signature_ret = _signature(signing_key_ret, string_to_sign_ret)
 
-    header["Authorization"] = _build_auth_header(signature_ret, meta, cred)
+    req.header["Authorization"] = _build_auth_header(signature_ret, meta, cred)
 
     if cred.session_token:
-        header['X-Security-Token'] = cred.session_token
-
-    return url
+        req.header['X-Security-Token'] = cred.session_token
 
 
 def _build_auth_header(signature_ret: str, meta: _Metadata, cred: _Credential) -> str:
@@ -86,19 +85,19 @@ def _build_auth_header(signature_ret: str, meta: _Metadata, cred: _Credential) -
            signature_ret
 
 
-def _hashed_canonical_request_v4(header: dict, url: str, body: bytes, method: str, meta: _Metadata) -> str:
-    parse_result = urlparse(url)
+def _hashed_canonical_request_v4(req: HTTPRequest, meta: _Metadata) -> str:
+    parse_result = urlparse(req.url)
     # encode body and generate body hash
-    if body is not None:
-        content_hash = hashlib.sha256(body)
+    if req.req_bytes is not None:
+        content_hash = hashlib.sha256(req.req_bytes)
     else:
         content_hash = hashlib.sha256(b'')
-    header["X-Content-Sha256"] = content_hash.hexdigest()
-    header["Host"] = parse_result.netloc
+    req.header["X-Content-Sha256"] = content_hash.hexdigest()
+    req.header["Host"] = parse_result.netloc
 
     sorted_headers: List[Tuple[str, str]] = []
     allowed_headers = ("content-type", "content-md5", "host")
-    for key, value in header.items():
+    for key, value in req.header.items():
         key_lower = key.lower()
         if key_lower in allowed_headers or key_lower.startswith("x-"):
             sorted_headers.append((key_lower, value.strip()))
@@ -122,7 +121,7 @@ def _hashed_canonical_request_v4(header: dict, url: str, body: bytes, method: st
     query_str: str = urlencode(sorted_queries)
 
     safe_chars = '/~'
-    req_parts = [method.upper(), quote(parse_result.path, safe_chars), _normal_query(query_str), headers_to_sign,
+    req_parts = [req.method.upper(), quote(parse_result.path, safe_chars), _normal_query(query_str), headers_to_sign,
                  meta.signed_headers, content_hash.hexdigest()]
     canonical_request = '\n'.join(req_parts)
 
@@ -156,4 +155,3 @@ def _signing_key(secret_access_key: str, date: str, region: str, service: str) -
 def _signature(signing_key_ret: bytes, string_to_sign_ret: str) -> str:
     hsh = hmac.new(signing_key_ret, string_to_sign_ret.encode('utf-8'), hashlib.sha256)
     return hsh.hexdigest()
-

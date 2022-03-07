@@ -1,11 +1,11 @@
 import logging
 import time
 from typing import List, Optional, Dict
-
 import requests
-from byteplus_rec_core import constant
 from requests import Response
-from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler, HostAvailabilityScore
+
+from byteplus_rec_core import constant
+from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler, HostAvailabilityScore, AvailablerConfig
 
 log = logging.getLogger(__name__)
 
@@ -14,7 +14,6 @@ _DEFAULT_WINDOW_SIZE: int = 60
 _DEFAULT_FAILURE_RATE_THRESHOLD: float = 0.1
 _DEFAULT_PING_URL_FORMAT: str = "http://{}/predict/api/ping"
 _DEFAULT_PING_TIMEOUT_SECONDS: float = 0.3
-_PING_SUCCESS_HTTP_CODE = 200
 
 
 class PingHostAvailablerConfig(object):
@@ -45,7 +44,8 @@ class PingHostAvailablerConfig(object):
 class _PingHostAvailabler(AbstractHostAvailabler):
     def __init__(self, config: PingHostAvailablerConfig):
         self._config: PingHostAvailablerConfig = config
-        super().__init__(self._config.project_id, self._config.default_hosts)
+        super().__init__(
+            AvailablerConfig(self._config.default_hosts, self._config.project_id, self._config.host_config))
         self._host_window_map: Dict[str, _Window] = {}
         for host in config.default_hosts:
             self._host_window_map[host] = _Window(config.window_size)
@@ -64,6 +64,7 @@ class _PingHostAvailabler(AbstractHostAvailabler):
             success = self._ping(host)
             window.put(success)
             host_availability_scores.append(HostAvailabilityScore(host, 1 - window.failure_rate()))
+        return host_availability_scores
 
     def _ping(self, host) -> bool:
         url: str = self._config.ping_url_format.format(host)
@@ -72,26 +73,23 @@ class _PingHostAvailabler(AbstractHostAvailabler):
             rsp: Response = requests.get(url, headers=None, timeout=self._config.ping_timeout_seconds)
             cost = int((time.time() - start) * 1000)
             if self._is_ping_success(rsp):
-                log.debug("[ByteplusSDK] ping success, host:'%s' cost:'%s' ms", host, cost)
+                log.debug("[ByteplusSDK] ping success, host:'%s' cost:%sms", host, cost)
                 return True
-            log.warning("[ByteplusSDK] ping fail, host:'%s', cost:'%s' ms, status:'%s'", host, cost, rsp.status_code)
+            log.warning("[ByteplusSDK] ping fail, host:'%s', cost:%sms, status:'%s'", host, cost, rsp.status_code)
             return False
         except BaseException as e:
             cost = int((time.time() - start) * 1000)
-            log.warning("[ByteplusSDK] ping find err, host:'%s', cost:'%s' ms, err:'%s'", host, cost, e)
+            log.warning("[ByteplusSDK] ping find err, host:'%s', cost:%sms, err:'%s'", host, cost, e)
             return False
 
-    def _is_ping_success(self, rsp: Response):
+    @staticmethod
+    def _is_ping_success(rsp: Response):
         if rsp.status_code != constant.HTTP_STATUS_OK:
             return False
         if rsp.content is None:
             return False
         rsp_str: str = str(rsp.content)
         return len(rsp_str) < 20 and "pong" in rsp_str
-
-
-def new_ping_host_availabler(config: PingHostAvailablerConfig) -> _PingHostAvailabler:
-    return _PingHostAvailabler(config)
 
 
 class _Window(object):

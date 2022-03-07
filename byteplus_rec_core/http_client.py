@@ -4,8 +4,7 @@ import logging
 from google.protobuf.message import Message
 
 from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler
-from byteplus_rec_core.ping_host_availabler import _PingHostAvailabler, PingHostAvailablerConfig, \
-    new_ping_host_availabler
+from byteplus_rec_core.ping_host_availabler import _PingHostAvailabler, PingHostAvailablerConfig
 from byteplus_rec_core.http_caller import _HTTPCaller
 from byteplus_rec_core.option import Option
 from byteplus_rec_core.abstract_region import AbstractRegion
@@ -30,7 +29,6 @@ class HTTPClient(object):
 
     def _build_url(self, path: str):
         host: str = self._host_availabler.get_host(path)
-        log.info("host: '%s', path: '%s'", host, path)
         return utils.build_url(self._schema, host, path)
 
     def shutdown(self):
@@ -42,9 +40,9 @@ class _HTTPClientBuilder(object):
         self._tenant_id: Optional[str] = None
         self._project_id: Optional[str] = None
         self._use_air_auth: Optional[bool] = None
-        self._token: Optional[str] = None
-        self._ak: Optional[str] = None
-        self._sk: Optional[str] = None
+        self._air_auth_token: Optional[str] = None
+        self._auth_ak: Optional[str] = None
+        self._auth_sk: Optional[str] = None
         self._auth_service: Optional[str] = None
         self._schema: Optional[str] = None
         self._hosts: Optional[List[str]] = None
@@ -55,16 +53,16 @@ class _HTTPClientBuilder(object):
         self._tenant_id = tenant_id
         return self
 
-    def token(self, token: str):
-        self._token = token
+    def air_auth_token(self, air_auth_token: str):
+        self._air_auth_token = air_auth_token
         return self
 
-    def ak(self, ak: str):
-        self._ak = ak
+    def auth_ak(self, ak: str):
+        self._auth_ak = ak
         return self
 
-    def sk(self, sk: str):
-        self._sk = sk
+    def auth_sk(self, sk: str):
+        self._auth_sk = sk
         return self
 
     def auth_service(self, auth_service: str):
@@ -109,11 +107,11 @@ class _HTTPClientBuilder(object):
 
     def _check_auth_required_field(self):
         if self._use_air_auth:
-            if self._token == "":
+            if self._air_auth_token == "":
                 raise Exception("token cannot be null")
             return
 
-        if self._sk == "" or self._ak == "":
+        if self._auth_sk == "" or self._auth_ak == "":
             raise Exception("ak and sk cannot be null")
 
     def _fill_default(self):
@@ -121,25 +119,21 @@ class _HTTPClientBuilder(object):
             self._schema = "https"
         if self._host_availabler is None:
             if self._hosts is not None and len(self._hosts) > 0:
-                config: PingHostAvailablerConfig = PingHostAvailablerConfig(default_hosts=self._hosts)
+                config = PingHostAvailablerConfig(default_hosts=self._hosts)
             else:
-                config: PingHostAvailablerConfig = PingHostAvailablerConfig(default_hosts=self._region.get_hosts(),
-                                                                            project_id=self._project_id)
-            self._host_availabler: _PingHostAvailabler = new_ping_host_availabler(config)
+                config = PingHostAvailablerConfig(default_hosts=self._region.get_hosts(), project_id=self._project_id)
+            self._host_availabler: _PingHostAvailabler = _PingHostAvailabler(config)
 
     def _new_http_caller(self) -> _HTTPCaller:
+        if self._use_air_auth:
+            return _HTTPCaller(self._tenant_id, self._air_auth_token, self._use_air_auth)
         credential: _Credential = _Credential(
-            self._ak,
-            self._sk,
+            self._auth_ak,
+            self._auth_sk,
             self._auth_service,
             self._region.get_auth_region(),
         )
-        http_caller: _HTTPCaller = _HTTPCaller(
-            self._tenant_id,
-            self._token,
-            self._use_air_auth,
-            credential
-        )
+        http_caller: _HTTPCaller = _HTTPCaller(self._tenant_id, self._air_auth_token, self._use_air_auth, credential)
         return http_caller
 
 
