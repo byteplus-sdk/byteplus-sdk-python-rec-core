@@ -44,32 +44,34 @@ class AbstractHostAvailabler(object):
         self.set_hosts(self._config.default_hosts)
         self.init()
 
-    def init(self):
-        if not utils.is_empty_str(self._config.project_id):
-            self._fetch_hosts_from_server()
-            threading.Thread(target=self._start_schedule_fetch_hosts).start()
-        threading.Thread(target=self._start_schedule_update_hosts).start()
-
-    def _start_schedule_fetch_hosts(self):
-        if self._close_fetch_hosts or self._abort:
-            return
-        time.sleep(10)
-        self._fetch_hosts_from_server()
-        self._start_schedule_fetch_hosts()
-        return
-
-    def _start_schedule_update_hosts(self):
-        if self._abort:
-            return
-        time.sleep(1)
-        self._score_and_update_hosts(self._config.host_config)
-        return
-
     def set_hosts(self, hosts: List[str]):
         if hosts is None or len(hosts) == 0:
             raise BizException("host array is empty")
         self._close_fetch_hosts = True
         self._score_and_update_hosts({"*": hosts})
+
+    def init(self):
+        if not utils.is_empty_str(self._config.project_id):
+            self._fetch_hosts_from_server()
+            threading.Thread(target=self._start_schedule_fetch_hosts).start()
+        threading.Thread(target=self._schedule_update_hosts).start()
+
+    def _start_schedule_fetch_hosts(self):
+        if self._close_fetch_hosts or self._abort:
+            log.debug("close fetch host, so return")
+            return
+        time.sleep(10)
+        log.warning("start to fetch host")
+        self._fetch_hosts_from_server()
+        self._start_schedule_fetch_hosts()
+        return
+
+    def _schedule_update_hosts(self):
+        if self._abort:
+            return
+        time.sleep(1)
+        self._score_and_update_hosts(self._config.host_config)
+        return
 
     def _fetch_hosts_from_server(self):
         url: str = _FETCH_HOST_URL_FORMAT.format(self.get_host("*"), self._config.project_id)
@@ -110,16 +112,17 @@ class AbstractHostAvailabler(object):
             log.warning("[ByteplusSDK] fetch host from server err, url:'%s', cost \'%s\'ms, err:'%s'", url, cost, e)
             return {}
 
-    def _is_server_host_not_update(self, new_host_config: Dict[str, List[str]]) -> bool:
-        if self._config.host_config is None:
+    def _is_server_hosts_not_updated(self, new_host_config: Dict[str, List[str]]) -> bool:
+        if self._config.host_config is None or new_host_config is None:
             return False
-        if len(new_host_config.keys()) != len(self._config.host_config.keys()):
-            return False
-        for path in new_host_config:
-            old_path_hosts = self._config.host_config[path]
-            if len(new_host_config[path]) != len(old_path_hosts):
+        for path in self._config.host_config:
+            new_host: List[str] = new_host_config.get(path)
+            old_host: List[str] = self._config.host_config.get(path)
+            if old_host is None or new_host is None or len(old_host) == 0:
                 return False
-            if new_host_config[path] != old_path_hosts:
+            if len(old_host) != len(new_host):
+                return False
+            if not set(old_host).issubset(set(new_host)):
                 return False
         return True
 
@@ -131,14 +134,15 @@ class AbstractHostAvailabler(object):
             log.error("[ByteplusSDK] scoring hosts return an empty list")
             return
         new_host_config: Dict[str, List[str]] = self._copy_and_sort_host(host_config, new_host_scores)
-        if self._is_server_host_not_update(new_host_config):
+        if self._is_host_config_not_update(new_host_config):
             log.debug("[ByteplusSDK] host order is not changed, '%s'", new_host_config)
             return
         log.warning("[ByteplusSDK] set new host config: '%s', old config: '%s'", new_host_config,
                     self._config.host_config)
         self._config.host_config = new_host_config
 
-    def _distinct_hosts(self, host_config: Dict[str, List[str]]):
+    @staticmethod
+    def _distinct_hosts(host_config: Dict[str, List[str]]):
         host_set = set()
         for path in host_config:
             host_set.update(host_config[path])
@@ -162,17 +166,16 @@ class AbstractHostAvailabler(object):
             new_host_config[path] = new_hosts
         return new_host_config
 
-    def _is_server_hosts_not_updated(self, new_host_config: Dict[str, List[str]]) -> bool:
-        if self._config.host_config is None or new_host_config is None:
+    def _is_host_config_not_update(self, new_host_config: Dict[str, List[str]]) -> bool:
+        if self._config.host_config is None:
             return False
-        for path in self._config.host_config:
-            new_host: List[str] = new_host_config.get(path)
-            old_host: List[str] = self._config.host_config.get(path)
-            if old_host is None or new_host is None or len(old_host) == 0:
+        if len(new_host_config.keys()) != len(self._config.host_config.keys()):
+            return False
+        for path in new_host_config:
+            old_path_hosts = self._config.host_config[path]
+            if len(new_host_config[path]) != len(old_path_hosts):
                 return False
-            if len(old_host) != len(new_host):
-                return False
-            if not set(old_host).issubset(set(new_host)):
+            if new_host_config[path] != old_path_hosts:
                 return False
         return True
 
