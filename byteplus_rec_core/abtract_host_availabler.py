@@ -39,26 +39,33 @@ class AvailablerConfig(object):
 class AbstractHostAvailabler(object):
     def __init__(self, config: AvailablerConfig):
         self._config: AvailablerConfig = config
-        self._close_fetch_hosts: bool = False
         self._abort: bool = False
+        self._close_fetch_hosts_flag: bool = False
+        self._fetch_hosts_thread = None
         self.init()
 
     def init(self):
         self.set_hosts(self._config.default_hosts)
         if not utils.is_empty_str(self._config.project_id):
             self._fetch_hosts_from_server()
-            threading.Thread(target=self._start_fetch_hosts_from_server).start()
+            self._fetch_hosts_thread = threading.Thread(target=self._start_fetch_hosts_from_server)
+            self._fetch_hosts_thread.start()
         threading.Thread(target=self._start_score_and_update_hosts).start()
 
     def set_hosts(self, hosts: List[str]):
         if hosts is None or len(hosts) == 0:
             raise BizException("host array is empty")
-        self._close_fetch_hosts = True
+        self._stop_fetch_hosts_from_server()
         self._score_and_update_hosts({"*": hosts})
 
+    def _stop_fetch_hosts_from_server(self):
+        # do not need to close fetch thread when setting default hosts
+        # close fetch thread only when set_hosts was called by user
+        if self._fetch_hosts_thread is not None:
+            self._close_fetch_hosts_flag = True
+
     def _start_fetch_hosts_from_server(self):
-        if self._close_fetch_hosts or self._abort:
-            log.debug("close fetch host, so return")
+        if self._close_fetch_hosts_flag or self._abort:
             return
         time.sleep(10)
         self._fetch_hosts_from_server()
