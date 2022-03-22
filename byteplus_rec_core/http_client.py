@@ -4,7 +4,7 @@ import logging
 from google.protobuf.message import Message
 
 from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler
-from byteplus_rec_core.ping_host_availabler import _PingHostAvailabler, PingHostAvailablerConfig
+from byteplus_rec_core.ping_host_availabler import _PingHostAvailabler
 from byteplus_rec_core.http_caller import _HTTPCaller
 from byteplus_rec_core.option import Option
 from byteplus_rec_core.abstract_region import AbstractRegion
@@ -39,7 +39,6 @@ class _HTTPClientBuilder(object):
     def __init__(self):
         self._tenant_id: Optional[str] = None
         self._project_id: Optional[str] = None
-        self._use_air_auth: Optional[bool] = None
         self._air_auth_token: Optional[str] = None
         self._auth_ak: Optional[str] = None
         self._auth_sk: Optional[str] = None
@@ -67,10 +66,6 @@ class _HTTPClientBuilder(object):
 
     def auth_service(self, auth_service: str):
         self._auth_service = auth_service
-        return self
-
-    def use_air_auth(self, use_air_auth: bool):
-        self._use_air_auth = use_air_auth
         return self
 
     def schema(self, schema: str):
@@ -106,7 +101,7 @@ class _HTTPClientBuilder(object):
             raise Exception("region is null")
 
     def _check_auth_required_field(self):
-        if self._use_air_auth:
+        if self._is_use_air_auth():
             if self._air_auth_token == "":
                 raise Exception("token cannot be null")
             return
@@ -119,22 +114,25 @@ class _HTTPClientBuilder(object):
             self._schema = "https"
         if self._host_availabler is None:
             if self._hosts is not None and len(self._hosts) > 0:
-                config = PingHostAvailablerConfig(default_hosts=self._hosts)
+                self._host_availabler: _PingHostAvailabler = _PingHostAvailabler(default_hosts=self._hosts)
             else:
-                config = PingHostAvailablerConfig(default_hosts=self._region.get_hosts(), project_id=self._project_id)
-            self._host_availabler: _PingHostAvailabler = _PingHostAvailabler(config)
+                self._host_availabler: _PingHostAvailabler = _PingHostAvailabler(default_hosts=self._region.get_hosts(),
+                                                                                 project_id=self._project_id)
 
     def _new_http_caller(self) -> _HTTPCaller:
-        if self._use_air_auth:
-            return _HTTPCaller(self._tenant_id, self._air_auth_token, self._use_air_auth)
+        if utils.none_empty_str([self._air_auth_token]):
+            return _HTTPCaller(self._tenant_id, self._air_auth_token)
         credential: _Credential = _Credential(
             self._auth_ak,
             self._auth_sk,
             self._auth_service,
             self._region.get_auth_region(),
         )
-        http_caller: _HTTPCaller = _HTTPCaller(self._tenant_id, self._air_auth_token, self._use_air_auth, credential)
+        http_caller: _HTTPCaller = _HTTPCaller(self._tenant_id, self._air_auth_token, credential)
         return http_caller
+
+    def _is_use_air_auth(self):
+        return utils.is_all_empty_str([self._auth_ak, self._auth_sk]) and utils.none_empty_str([self._air_auth_token])
 
 
 def new_http_client_builder() -> _HTTPClientBuilder:

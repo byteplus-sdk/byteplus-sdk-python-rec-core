@@ -27,11 +27,9 @@ class _HTTPCaller(object):
     def __init__(self,
                  tenant_id: str,
                  air_auth_token: str,
-                 use_air_auth: bool,
                  credential: _Credential = None):
         self._tenant_id: str = tenant_id
         self._air_auth_token: Optional[str] = air_auth_token
-        self._use_air_auth: Optional[bool] = use_air_auth
         self._credential: Optional[_Credential] = credential
 
     def do_json_request(self, url: str, request: Union[dict, list], *opts: Option) -> Union[dict, list]:
@@ -122,19 +120,19 @@ class _HTTPCaller(object):
                 self._log_err_http_rsp(url, rsp)
                 raise BizException("code:{} msg:{}".format(rsp.status_code, rsp.reason))
             cost = int((time.time() - start) * 1000)
-            log.debug("[ByteplusSDK] http path:%s, cost:%sms", url, cost)
+            log.debug("[ByteplusSDK] http path:%s, cost:%dms", url, cost)
         except BaseException as e:
             cost = int((time.time() - start) * 1000)
             if self._is_timeout_exception(e):
-                log.error("[ByteplusSDK] do http request timeout, url:%s, cost:%sms, msg:%s", url, cost, e)
+                log.error("[ByteplusSDK] do http request timeout, url:%s, cost:%dms, msg:%s", url, cost, e)
                 raise NetException(str(e))
-            log.error("[ByteplusSDK] do http request occur io exception, url:%s, cost:%sms, msg:%s", url, cost, e)
+            log.error("[ByteplusSDK] do http request occur io exception, url:%s, cost:%dms, msg:%s", url, cost, e)
             raise BizException(str(e))
         log.debug("[ByteplusSDK][HTTPCaller] URL:%s, Response Headers:\n%s", url, str(rsp.headers))
         return rsp.content
 
     def _with_auth_headers(self, req: HTTPRequest):
-        if self._use_air_auth:
+        if self._credential is None:
             self._with_air_auth_headers(req)
             return
         _sign(req, self._credential)
