@@ -38,11 +38,10 @@ class HostAvailabilityScore:
 
 class AbstractHostAvailabler(object):
     def __init__(self, default_hosts: Optional[List[str]] = None,
-                 project_id: Optional[str] = None,
-                 host_config: Optional[Dict[str, List[str]]] = None):
+                 project_id: Optional[str] = None):
         self._default_hosts = default_hosts
         self._project_id = project_id
-        self._host_config = host_config
+        self._host_config = None
         self._abort: bool = False
         self._close_fetch_hosts_flag: bool = False
         self._fetch_hosts_thread = None
