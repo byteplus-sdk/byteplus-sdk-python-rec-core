@@ -29,9 +29,8 @@ class Config(object):
 class _PingHostAvailabler(AbstractHostAvailabler):
     def __init__(self, default_hosts: Optional[List[str]] = None,
                  project_id: Optional[str] = None,
-                 host_config: Optional[Dict[str, List[str]]] = None,
                  config: Optional[Config] = Config()):
-        super().__init__(default_hosts, project_id, host_config)
+        super().__init__(default_hosts, project_id)
         self._config: Config = config
         self._host_window_map: Dict[str, _Window] = {}
         for host in default_hosts:
