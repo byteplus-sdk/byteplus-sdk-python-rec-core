@@ -16,6 +16,7 @@ class Option(object):
             opt.fill(options)
         return options
 
+    # Specifies the timeout for this request
     @staticmethod
     def with_timeout(timeout: datetime.timedelta):
         class OptionImpl(Option):
@@ -24,6 +25,8 @@ class Option(object):
 
         return OptionImpl()
 
+    # Specify the request_id manually. By default,
+    # the SDK generates a unique request_id for each request using the UUID
     @staticmethod
     def with_request_id(request_id: str):
         class OptionImpl(Option):
@@ -32,16 +35,10 @@ class Option(object):
 
         return OptionImpl()
 
+    # Add an HTTP header to the request.
+    # In general, you do not need to care this.
     @staticmethod
-    def with_headers(headers: dict):
-        class OptionImpl(Option):
-            def fill(self, options: Options) -> None:
-                options.headers = headers
-
-        return OptionImpl()
-
-    @staticmethod
-    def with_header(key: str, value: str):
+    def with_http_header(key: str, value: str):
         class OptionImpl(Option):
             def fill(self, options: Options) -> None:
                 if options.headers is None:
@@ -49,16 +46,10 @@ class Option(object):
                 options.headers[key] = value
         return OptionImpl()
 
+    # Add an HTTP query to the request.
+    # In general, you do not need to care this.
     @staticmethod
-    def with_queries(queries: dict):
-        class OptionImpl(Option):
-            def fill(self, options: Options) -> None:
-                options.queries = queries
-
-        return OptionImpl()
-
-    @staticmethod
-    def with_query(key: str, value: str):
+    def with_http_query(key: str, value: str):
         class OptionImpl(Option):
             def fill(self, options: Options) -> None:
                 if options.queries is None:
@@ -67,6 +58,9 @@ class Option(object):
 
         return OptionImpl()
 
+    # Specifies the maximum time it will take for
+    # the server to process the request. The server will try to return
+    # the result within this time, even if the task is not completed
     @staticmethod
     def with_server_timeout(timeout: datetime.timedelta):
         class OptionImpl(Option):
