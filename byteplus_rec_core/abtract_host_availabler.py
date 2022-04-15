@@ -58,6 +58,7 @@ class AbstractHostAvailabler(object):
     def set_hosts(self, hosts: List[str]):
         if hosts is None or len(hosts) == 0:
             raise BizException("host array is empty")
+        self._default_hosts = hosts
         self._stop_fetch_hosts_from_server()
         self._score_and_update_hosts({"*": hosts})
 
@@ -84,7 +85,7 @@ class AbstractHostAvailabler(object):
         return
 
     def _fetch_hosts_from_server(self):
-        url: str = _FETCH_HOST_URL_FORMAT.format(self.get_host("*"), self._project_id)
+        url: str = _FETCH_HOST_URL_FORMAT.format(self._default_hosts[0], self._project_id)
         for i in range(3):
             rsp_host_config: Dict[str, List[str]] = self._do_fetch_hosts_from_server(url)
             if not rsp_host_config:
