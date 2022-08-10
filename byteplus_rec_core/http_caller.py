@@ -4,15 +4,18 @@ import json
 import logging
 import random
 import string
+import threading
 import time
 import uuid
 from typing import Optional, Union
 import requests
-from requests import Response
+from requests import Response, Session
 
 from google.protobuf.message import Message
+from requests.adapters import HTTPAdapter
 
-from byteplus_rec_core import constant
+from byteplus_rec_core import constant, utils
+from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler
 from byteplus_rec_core.exception import BizException, NetException
 from byteplus_rec_core.option import Option
 from byteplus_rec_core.options import Options
@@ -21,16 +24,56 @@ from byteplus_rec_core.auth import _Credential, _sign
 
 log = logging.getLogger(__name__)
 
+_DEFAULT_PING_URL_FORMAT: str = "{}://{}/predict/api/ping"
+_DEFAULT_PING_TIMEOUT_SECONDS: float = 0.5
+
+
+class Config(object):
+    def __init__(self,
+                 max_idle_connections: Optional[int] = constant.DEFAULT_MAX_IDLE_CONNECTIONS,
+                 keep_alive_ping_interval_seconds: Optional[float] = constant.DEFAULT_KEEPALIVE_PING_INTERVAL_SECONDS):
+        self.max_idle_connections = max_idle_connections
+        self.keep_alive_ping_interval_seconds = keep_alive_ping_interval_seconds
+
 
 class _HTTPCaller(object):
-
     def __init__(self,
+                 project_id: str,
                  tenant_id: str,
                  air_auth_token: str,
+                 host_availabler: AbstractHostAvailabler,
+                 caller_config: Config,
+                 schema: str,
+                 keep_alive: bool,
                  credential: _Credential = None):
+        self._abort: bool = False
+        self._project = project_id
         self._tenant_id: str = tenant_id
         self._air_auth_token: Optional[str] = air_auth_token
+        self._host_availabler = host_availabler
+        self._config = caller_config
+        self._schema = schema
+        self._keep_alive = keep_alive
         self._credential: Optional[_Credential] = credential
+        # requests.post creates a new connection for each request, and cannot reuse the connection.
+        # Change it to session mode. By default, it maintains a connection pool of up to 10 different hosts.
+        self._http_cli: Session = requests.Session()
+        self._http_cli.mount("https://", HTTPAdapter(pool_maxsize=self._config.max_idle_connections))
+        self._http_cli.mount("http://", HTTPAdapter(pool_maxsize=self._config.max_idle_connections))
+        if self._keep_alive:
+            self._init_heartbeat_executor()
+
+    def _init_heartbeat_executor(self):
+        threading.Thread(target=self._heartbeat).start()
+
+    def _heartbeat(self):
+        if self._abort:
+            return
+        time.sleep(self._config.keep_alive_ping_interval_seconds)
+        for host in self._host_availabler.get_hosts():
+            utils.ping(self._project, self._http_cli, _DEFAULT_PING_URL_FORMAT,
+                       self._schema, host, _DEFAULT_PING_TIMEOUT_SECONDS)
+        self._heartbeat()
 
     def do_json_request(self, url: str, request: Union[dict, list], *opts: Option) -> Union[dict, list]:
         options: Options = Option.conv_to_options(opts)
@@ -113,9 +156,10 @@ class _HTTPCaller(object):
         try:
             if options.timeout is not None:
                 timeout_secs = options.timeout.total_seconds()
-                rsp: Response = requests.post(url=req.url, headers=req.header, data=req.req_bytes, timeout=timeout_secs)
+                rsp: Response = self._http_cli.post(url=req.url, headers=req.header, data=req.req_bytes,
+                                                    timeout=timeout_secs)
             else:
-                rsp: Response = requests.post(url=url, headers=headers, data=req_bytes)
+                rsp: Response = self._http_cli.post(url=url, headers=headers, data=req_bytes)
             if rsp.status_code != constant.HTTP_STATUS_OK:
                 self._log_err_http_rsp(url, rsp)
                 raise BizException("code:{} msg:{}".format(rsp.status_code, rsp.reason))
@@ -171,3 +215,6 @@ class _HTTPCaller(object):
         if "time" in lower_err_msg and "out" in lower_err_msg:
             return True
         return False
+
+    def shutdown(self):
+        self._abort = True

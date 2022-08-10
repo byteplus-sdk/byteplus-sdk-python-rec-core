@@ -4,7 +4,8 @@ import logging
 from google.protobuf.message import Message
 
 from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler
-from byteplus_rec_core.ping_host_availabler import _PingHostAvailabler
+from byteplus_rec_core.host_availabler_factory import HostAvailablerFactory
+from byteplus_rec_core.http_caller import Config as HTTPCallerConfig
 from byteplus_rec_core.http_caller import _HTTPCaller
 from byteplus_rec_core.option import Option
 from byteplus_rec_core.abstract_region import AbstractRegion
@@ -33,12 +34,14 @@ class HTTPClient(object):
 
     def shutdown(self):
         self._host_availabler.shutdown()
+        self._http_caller.shutdown()
 
 
 class _HTTPClientBuilder(object):
     def __init__(self):
         self._tenant_id: Optional[str] = None
         self._project_id: Optional[str] = None
+        self._use_air_auth: Optional[bool] = False
         self._air_auth_token: Optional[str] = None
         self._auth_ak: Optional[str] = None
         self._auth_sk: Optional[str] = None
@@ -46,10 +49,21 @@ class _HTTPClientBuilder(object):
         self._schema: Optional[str] = None
         self._hosts: Optional[List[str]] = None
         self._region: Optional[AbstractRegion] = None
+        self._host_availabler_factory: Optional[HostAvailablerFactory] = None
+        self._keep_alive: Optional[bool] = False
+        self._caller_config: Optional[HTTPCallerConfig] = None
         self._host_availabler: Optional[AbstractHostAvailabler] = None
 
     def tenant_id(self, tenant_id: str):
         self._tenant_id = tenant_id
+        return self
+
+    def project_id(self, project_id: str):
+        self._project_id = project_id
+        return self
+
+    def use_air_auth(self, use_air_auth: bool):
+        self._use_air_auth = use_air_auth
         return self
 
     def air_auth_token(self, air_auth_token: str):
@@ -72,10 +86,6 @@ class _HTTPClientBuilder(object):
         self._schema = schema
         return self
 
-    def project_id(self, project_id: str):
-        self._project_id = project_id
-        return self
-
     def hosts(self, hosts: list):
         self._hosts = hosts
         return self
@@ -84,8 +94,16 @@ class _HTTPClientBuilder(object):
         self._region = region
         return self
 
-    def host_availabler(self, host_availabler: str):
-        self._host_availabler = host_availabler
+    def host_availabler_factory(self, host_availabler_factory: HostAvailablerFactory):
+        self._host_availabler_factory = host_availabler_factory
+        return self
+
+    def keep_alive(self, keep_alive: bool):
+        self._keep_alive = keep_alive
+        return self
+
+    def caller_config(self, caller_config: HTTPCallerConfig):
+        self._caller_config = caller_config
         return self
 
     def build(self) -> HTTPClient:
@@ -94,45 +112,67 @@ class _HTTPClientBuilder(object):
         return HTTPClient(self._new_http_caller(), self._host_availabler, self._schema, self._project_id)
 
     def _check_required_field(self):
-        if len(self._tenant_id) == 0:
+        if self._tenant_id is None or len(self._tenant_id) == 0:
             raise Exception("tenant id is null")
         self._check_auth_required_field()
         if self._region is None:
             raise Exception("region is null")
 
     def _check_auth_required_field(self):
-        if self._is_use_air_auth():
-            if self._air_auth_token == "":
+        if self._use_air_auth:
+            if utils.is_empty_str(self._air_auth_token):
                 raise Exception("token cannot be null")
             return
 
-        if self._auth_sk == "" or self._auth_ak == "":
+        if utils.is_all_empty_str([self._auth_ak, self._auth_sk]):
             raise Exception("ak and sk cannot be null")
 
     def _fill_default(self):
-        if self._schema == "":
+        if utils.is_empty_str(self._schema):
             self._schema = "https"
+        # # fill hostAvailabler.
+        if self._host_availabler_factory is None:
+            self._host_availabler_factory = HostAvailablerFactory()
         if self._host_availabler is None:
             if self._hosts is not None and len(self._hosts) > 0:
-                self._host_availabler: _PingHostAvailabler = _PingHostAvailabler(default_hosts=self._hosts)
+                self._host_availabler: AbstractHostAvailabler = \
+                    self._host_availabler_factory.new_host_availabler(hosts=self._hosts)
             else:
-                self._host_availabler: _PingHostAvailabler = _PingHostAvailabler(default_hosts=self._region.get_hosts(),
-                                                                                 project_id=self._project_id)
+                self._host_availabler: AbstractHostAvailabler =\
+                    self._host_availabler_factory.new_host_availabler(hosts=self._region.get_hosts(),
+                                                                      project_id=self._project_id)
+        # fill default caller config.
+        if self._caller_config is None:
+            self._caller_config = HTTPCallerConfig()
 
     def _new_http_caller(self) -> _HTTPCaller:
-        if utils.none_empty_str([self._air_auth_token]):
-            return _HTTPCaller(self._tenant_id, self._air_auth_token)
+        if self._use_air_auth:
+            return _HTTPCaller(
+                self._project_id,
+                self._tenant_id,
+                self._air_auth_token,
+                self._host_availabler,
+                self._caller_config,
+                self._schema,
+                self._keep_alive
+            )
         credential: _Credential = _Credential(
             self._auth_ak,
             self._auth_sk,
             self._auth_service,
             self._region.get_auth_region(),
         )
-        http_caller: _HTTPCaller = _HTTPCaller(self._tenant_id, self._air_auth_token, credential)
-        return http_caller
-
-    def _is_use_air_auth(self):
-        return utils.is_all_empty_str([self._auth_ak, self._auth_sk]) and utils.none_empty_str([self._air_auth_token])
+        _http_caller: _HTTPCaller = _HTTPCaller(
+            self._project_id,
+            self._tenant_id,
+            self._air_auth_token,
+            self._host_availabler,
+            self._caller_config,
+            self._schema,
+            self._keep_alive,
+            credential
+        )
+        return _http_caller
 
 
 def new_http_client_builder() -> _HTTPClientBuilder:

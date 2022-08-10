@@ -16,6 +16,8 @@ log = logging.getLogger(__name__)
 
 _FETCH_HOST_URL_FORMAT: str = "http://{}/data/api/sdk/host?project_id={}"
 _HOST_AVAILABLE_SCORE_FORMAT: str = "host={}, score={}"
+_DEFAULT_FETCH_HOST_INTERVAL_SECONDS: float = 10
+_DEFAULT_SCORE_HOST_INTERVAL_SECONDS: float = 1
 
 
 class HostAvailabilityScore:
@@ -38,18 +40,22 @@ class HostAvailabilityScore:
 
 class AbstractHostAvailabler(object):
     def __init__(self, default_hosts: Optional[List[str]] = None,
-                 project_id: Optional[str] = None):
+                 project_id: Optional[str] = None,
+                 fetch_host_interval_seconds: Optional[float] = _DEFAULT_FETCH_HOST_INTERVAL_SECONDS,
+                 score_host_interval_seconds: Optional[float] = _DEFAULT_SCORE_HOST_INTERVAL_SECONDS):
+        self.project_id = project_id
         self._default_hosts = default_hosts
-        self._project_id = project_id
         self._host_config = None
         self._abort: bool = False
         self._close_fetch_hosts_flag: bool = False
         self._fetch_hosts_thread = None
+        self._fetch_host_interval_seconds = fetch_host_interval_seconds
+        self._score_host_interval_seconds = score_host_interval_seconds
         self.init()
 
     def init(self):
         self.set_hosts(self._default_hosts)
-        if not utils.is_empty_str(self._project_id):
+        if not utils.is_empty_str(self.project_id):
             self._fetch_hosts_from_server()
             self._fetch_hosts_thread = threading.Thread(target=self._start_fetch_hosts_from_server)
             self._fetch_hosts_thread.start()
@@ -71,7 +77,7 @@ class AbstractHostAvailabler(object):
     def _start_fetch_hosts_from_server(self):
         if self._close_fetch_hosts_flag or self._abort:
             return
-        time.sleep(10)
+        time.sleep(self._fetch_host_interval_seconds)
         self._fetch_hosts_from_server()
         self._start_fetch_hosts_from_server()
         return
@@ -79,13 +85,13 @@ class AbstractHostAvailabler(object):
     def _start_score_and_update_hosts(self):
         if self._abort:
             return
-        time.sleep(1)
+        time.sleep(self._score_host_interval_seconds)
         self._score_and_update_hosts(self._host_config)
         self._start_score_and_update_hosts()
         return
 
     def _fetch_hosts_from_server(self):
-        url: str = _FETCH_HOST_URL_FORMAT.format(self._default_hosts[0], self._project_id)
+        url: str = _FETCH_HOST_URL_FORMAT.format(self._default_hosts[0], self.project_id)
         for i in range(3):
             rsp_host_config: Dict[str, List[str]] = self._do_fetch_hosts_from_server(url)
             if not rsp_host_config:
@@ -190,6 +196,9 @@ class AbstractHostAvailabler(object):
             if new_hosts != old_hosts:
                 return False
         return True
+
+    def get_hosts(self) -> List[str]:
+        return self._distinct_hosts(self._host_config)
 
     def get_host(self, path: str) -> str:
         hosts = self._host_config.get(path)
