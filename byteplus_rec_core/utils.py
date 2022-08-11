@@ -11,6 +11,10 @@ from byteplus_rec_core.exception import NetException, BizException
 log = logging.getLogger(__name__)
 
 
+def current_time_millis() -> int:
+    return int(time.time() * 1000)
+
+
 def _milliseconds(delta: timedelta) -> int:
     return int(delta.total_seconds() * 1000.0)
 
@@ -90,6 +94,13 @@ def is_ping_success(rsp: Response) -> bool:
         return False
     rsp_str: str = str(rsp.content)
     return len(rsp_str) < 20 and "pong" in rsp_str
+
+
+def is_timeout_exception(e):
+    lower_err_msg = str(e).lower()
+    if "time" in lower_err_msg and "out" in lower_err_msg:
+        return True
+    return False
 
 
 class HTTPRequest(object):
