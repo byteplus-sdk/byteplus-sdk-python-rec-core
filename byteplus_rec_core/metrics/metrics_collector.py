@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+from threading import Lock
 from queue import Queue
 from typing import Optional, List
 
@@ -22,6 +23,7 @@ class MetricsCollector(object):
     cleaning_metrics_collector: bool = False
     cleaning_metrics_log_collector: bool = False
     initialed: bool = False
+    lock: Lock = Lock()
 
     @classmethod
     def init(cls, cfg: MetricsCfg = None, host_availabler: Optional[AbstractHostAvailabler] = None):
@@ -45,17 +47,20 @@ class MetricsCollector(object):
 
     @classmethod
     def _do_init(cls):
+        cls.lock.acquire()
+        if cls.initialed:
+            return
         # initialize metrics reporter
         cls.metrics_reporter = MetricsReporter(cls.metrics_cfg)
         # initialize metrics collector
         cls.metrics_collector = Queue(maxsize=MAX_METRICS_SIZE)
         cls.metrics_log_collector = Queue(maxsize=MAX_METRICS_LOG_SIZE)
 
-        if not cls.initialed:
-            cls.initialed = True
-            if not cls.is_enable_metrics() and not cls.is_enable_metrics_log():
-                return
-            threading.Thread(target=cls._report).start()
+        if not cls.is_enable_metrics() and not cls.is_enable_metrics_log():
+            return
+        threading.Thread(target=cls._report).start()
+        cls.initialed = True
+        cls.lock.release()
 
     @classmethod
     def is_enable_metrics(cls) -> bool:
@@ -90,7 +95,7 @@ class MetricsCollector(object):
         metric: Metric = Metric()
         metric.name = metric_name
         metric.type = metrics_type
-        metric.value = value
+        metric.value = float(value)
         metric.timestamp = utils.current_time_millis()
         metric.tags.update(cls._recover_tags(*tag_kvs))
         cls.metrics_collector.put(metric)

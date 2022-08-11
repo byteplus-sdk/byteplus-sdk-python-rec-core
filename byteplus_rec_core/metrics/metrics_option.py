@@ -11,12 +11,20 @@ class MetricsCfg(object):
                  http_schema: str = DEFAULT_HTTP_SCHEMA,
                  report_interval_seconds: float = DEFAULT_REPORT_INTERVAL_SECONDS,
                  http_timeout_seconds: float = DEFAULT_HTTP_TIMEOUT_SECONDS):
+        # When metrics are enabled, monitoring metrics will be reported to the byteplus server during use.
         self.enable_metrics: bool = enable_metrics
+        # When metrics log is enabled, the log will be reported to the byteplus server during use.
         self.enable_metrics_log: bool = enable_metrics_log
+        # The address of the byteplus metrics service, will be consistent with the host maintained by hostAvailabler.
         self.domain: str = domain
+        # The prefix of the Metrics indicator, the default is byteplus.rec.sdk, do not modify.
         self.prefix: str = prefix
+        # Use this httpSchema to report metrics to byteplus server, default is https.
         self.http_schema: str = http_schema
+        # The reporting interval, the default is 15s, if the QPS is high,
+        # the reporting interval can be reduced to prevent data loss.
         self.report_interval_seconds: float = report_interval_seconds
+        # Timeout for request reporting.
         self.http_timeout_seconds: float = http_timeout_seconds
 
 
