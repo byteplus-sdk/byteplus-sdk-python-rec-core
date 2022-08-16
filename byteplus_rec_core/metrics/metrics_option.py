@@ -2,7 +2,6 @@ from abc import abstractmethod
 
 from byteplus_rec_core import utils
 from byteplus_rec_core.metrics.constant import *
-from byteplus_rec_core.abstract_region import AbstractRegion
 
 
 class MetricsCfg(object):
@@ -94,13 +93,5 @@ class MetricsOption(object):
         class OptionImpl(MetricsOption):
             def fill(self, cfg: MetricsCfg) -> None:
                 cfg.http_timeout_seconds = metrics_timeout_seconds
-
-        return OptionImpl()
-
-    @staticmethod
-    def with_metrics_region(region: AbstractRegion):
-        class OptionImpl(MetricsOption):
-            def fill(self, cfg: MetricsCfg) -> None:
-                cfg.domain = region.get_hosts()[0]
 
         return OptionImpl()

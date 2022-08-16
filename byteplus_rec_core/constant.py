@@ -18,3 +18,8 @@ POST_METHOD_NAME = "POST"
 DEFAULT_MAX_IDLE_CONNECTIONS: int = 32
 # The default keepalive ping interval
 DEFAULT_KEEPALIVE_PING_INTERVAL_SECONDS: float = 45
+
+# Metrics Key
+METRICS_KEY_COMMON_ERROR = "common.err"
+METRICS_KEY_REQUEST_TOTAL_COST = "request.total.cost"
+METRICS_KEY_HEARTBEAT_COUNT = "heartbeat.count"

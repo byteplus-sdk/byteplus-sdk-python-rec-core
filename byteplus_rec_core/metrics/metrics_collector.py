@@ -31,9 +31,7 @@ class MetricsCollector(object):
             return
         if cfg is None:
             cfg = MetricsCfg()
-        cls.metrics_cfg = cfg
-        cls.host_availabler = host_availabler
-        cls._do_init()
+        cls._do_init(cfg, host_availabler)
 
     @classmethod
     def init_with_option(cls, *metrics_opts: MetricsOption):
@@ -42,14 +40,15 @@ class MetricsCollector(object):
         cfg = MetricsCfg()
         for opt in metrics_opts:
             opt.fill(cfg)
-        cls.metrics_cfg = cfg
-        cls._do_init()
+        cls._do_init(cfg)
 
     @classmethod
-    def _do_init(cls):
+    def _do_init(cls, cfg: MetricsCfg, host_availabler: Optional[AbstractHostAvailabler] = None):
         cls.lock.acquire()
         if cls.initialed:
             return
+        cls.metrics_cfg = cfg
+        cls.host_availabler = host_availabler
         # initialize metrics reporter
         cls.metrics_reporter = MetricsReporter(cls.metrics_cfg)
         # initialize metrics collector
@@ -57,6 +56,7 @@ class MetricsCollector(object):
         cls.metrics_log_collector = Queue(maxsize=MAX_METRICS_LOG_SIZE)
 
         if not cls.is_enable_metrics() and not cls.is_enable_metrics_log():
+            cls.initialed = True
             return
         threading.Thread(target=cls._report).start()
         cls.initialed = True

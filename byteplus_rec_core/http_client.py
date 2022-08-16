@@ -7,6 +7,8 @@ from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler
 from byteplus_rec_core.host_availabler_factory import HostAvailablerFactory
 from byteplus_rec_core.http_caller import Config as HTTPCallerConfig
 from byteplus_rec_core.http_caller import _HTTPCaller
+from byteplus_rec_core.metrics.metrics_collector import MetricsCollector
+from byteplus_rec_core.metrics.metrics_option import MetricsCfg
 from byteplus_rec_core.option import Option
 from byteplus_rec_core.abstract_region import AbstractRegion
 from byteplus_rec_core.auth import _Credential
@@ -53,6 +55,7 @@ class _HTTPClientBuilder(object):
         self._keep_alive: Optional[bool] = False
         self._caller_config: Optional[HTTPCallerConfig] = None
         self._host_availabler: Optional[AbstractHostAvailabler] = None
+        self._metrics_cfg: Optional[MetricsCfg] = None
 
     def tenant_id(self, tenant_id: str):
         self._tenant_id = tenant_id
@@ -106,9 +109,14 @@ class _HTTPClientBuilder(object):
         self._caller_config = caller_config
         return self
 
+    def metrics_cfg(self, metrics_cfg: MetricsCfg):
+        self._metrics_cfg = metrics_cfg
+        return self
+
     def build(self) -> HTTPClient:
         self._check_required_field()
         self._fill_default()
+        MetricsCollector.init(self._metrics_cfg, self._host_availabler)
         return HTTPClient(self._new_http_caller(), self._host_availabler, self._schema, self._project_id)
 
     def _check_required_field(self):

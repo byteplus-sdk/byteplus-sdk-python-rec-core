@@ -9,7 +9,7 @@ from byteplus_rec_core.ping_host_availabler import PingHostAvailabler, Config
 class HostAvailablerFactory(object):
     @abstractmethod
     def new_host_availabler(self, hosts: List[str],
-                            project_id: Optional[str] = None, config: Optional[Config] = None) -> AbstractHostAvailabler:
-        return PingHostAvailabler(hosts, project_id, config)
+                            project_id: Optional[str] = None) -> AbstractHostAvailabler:
+        return PingHostAvailabler(hosts, project_id, config=None)
 
 
