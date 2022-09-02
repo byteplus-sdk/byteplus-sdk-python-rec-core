@@ -40,16 +40,16 @@ class PingHostAvailabler(AbstractHostAvailabler):
         if config is None:
             config = Config()
         self._config: Config = config
+        self._ping_http_cli: Session = requests.Session()
+        self._host_window_map: Dict[str, _Window] = {}
+        for host in default_hosts:
+            self._host_window_map[host] = _Window(self._config.window_size)
         super().__init__(
             default_hosts,
             project_id,
             self._config.fetch_host_interval_seconds,
             self._config.ping_interval_seconds
         )
-        self._ping_http_cli: Session = requests.Session()
-        self._host_window_map: Dict[str, _Window] = {}
-        for host in default_hosts:
-            self._host_window_map[host] = _Window(self._config.window_size)
         return
 
     def do_score_hosts(self, hosts: List[str]) -> List[HostAvailabilityScore]:

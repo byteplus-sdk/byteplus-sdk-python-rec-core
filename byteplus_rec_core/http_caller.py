@@ -191,15 +191,6 @@ class _HTTPCaller(object):
             if rsp.status_code != constant.HTTP_STATUS_OK:
                 self._log_err_http_rsp(url, rsp)
                 raise BizException("code:{} msg:{}".format(rsp.status_code, rsp.reason))
-            cost = int((time.time() - start) * 1000)
-            metrics_tags = [
-                "project_id:" + self._project_id,
-                "url:" + utils.escape_metrics_tag_value(url),
-            ]
-            Metrics.timer(constant.METRICS_KEY_REQUEST_TOTAL_COST, cost, *metrics_tags)
-            MetricsLog.info(self._get_req_id(), "[ByteplusSDK] http request, project_id:{}, url:{}, cost:{}ms",
-                            self._project_id, url, cost)
-            log.debug("[ByteplusSDK] http url:%s, cost:%dms", url, cost)
         except BaseException as e:
             cost = int((time.time() - start) * 1000)
             if self._is_timeout_exception(e):
@@ -225,7 +216,17 @@ class _HTTPCaller(object):
                              self._project_id, url, e)
             log.error("[ByteplusSDK] do http request occur io exception, url:%s, cost:%dms, msg:%s", url, cost, e)
             raise BizException(str(e))
-        log.debug("[ByteplusSDK][HTTPCaller] URL:%s, Response Headers:\n%s", url, str(rsp.headers))
+        finally:
+            cost = int((time.time() - start) * 1000)
+            metrics_tags = [
+                "project_id:" + self._project_id,
+                "url:" + utils.escape_metrics_tag_value(url),
+            ]
+            Metrics.timer(constant.METRICS_KEY_REQUEST_TOTAL_COST, cost, *metrics_tags)
+            Metrics.counter(constant.METRICS_KEY_REQUEST_COUNT, 1, *metrics_tags)
+            MetricsLog.info(self._get_req_id(), "[ByteplusSDK] http request, project_id:{}, url:{}, cost:{}ms",
+                            self._project_id, url, cost)
+            log.debug("[ByteplusSDK] http url:%s, cost:%dms", url, cost)
         return rsp.content
 
     def _with_auth_headers(self, req: HTTPRequest):

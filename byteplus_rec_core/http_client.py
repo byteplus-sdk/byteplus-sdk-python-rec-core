@@ -1,3 +1,4 @@
+import threading
 from typing import Optional, Union, List
 import logging
 
@@ -37,6 +38,10 @@ class HTTPClient(object):
     def shutdown(self):
         self._host_availabler.shutdown()
         self._http_caller.shutdown()
+
+
+_global_host_availabler_lock = threading.Lock()
+_global_host_availabler: Optional[AbstractHostAvailabler] = None
 
 
 class _HTTPClientBuilder(object):
@@ -114,9 +119,12 @@ class _HTTPClientBuilder(object):
         return self
 
     def build(self) -> HTTPClient:
+        global _global_host_availabler
+
         self._check_required_field()
         self._fill_default()
-        MetricsCollector.init(self._metrics_cfg, self._host_availabler)
+        self._init_global_host_availabler()
+        MetricsCollector.init(self._metrics_cfg, _global_host_availabler)
         return HTTPClient(self._new_http_caller(), self._host_availabler, self._schema, self._project_id)
 
     def _check_required_field(self):
@@ -141,17 +149,28 @@ class _HTTPClientBuilder(object):
         # # fill hostAvailabler.
         if self._host_availabler_factory is None:
             self._host_availabler_factory = HostAvailablerFactory()
-        if self._host_availabler is None:
-            if self._hosts is not None and len(self._hosts) > 0:
-                self._host_availabler: AbstractHostAvailabler = \
-                    self._host_availabler_factory.new_host_availabler(hosts=self._hosts)
-            else:
-                self._host_availabler: AbstractHostAvailabler =\
-                    self._host_availabler_factory.new_host_availabler(hosts=self._region.get_hosts(),
-                                                                      project_id=self._project_id)
+        self._host_availabler: AbstractHostAvailabler = self._new_host_availabler()
+
         # fill default caller config.
         if self._caller_config is None:
             self._caller_config = HTTPCallerConfig()
+
+    def _new_host_availabler(self) -> AbstractHostAvailabler:
+        if self._hosts is not None and len(self._hosts) > 0:
+            return self._host_availabler_factory.new_host_availabler(hosts=self._hosts)
+        return self._host_availabler_factory.new_host_availabler(hosts=self._region.get_hosts(),
+                                                                 project_id=self._project_id)
+
+    def _init_global_host_availabler(self):
+        global _global_host_availabler
+        global _global_host_availabler_lock
+
+        _global_host_availabler_lock.acquire()
+        if _global_host_availabler is not None:
+            _global_host_availabler_lock.release()
+            return
+        _global_host_availabler = self._new_host_availabler()
+        _global_host_availabler_lock.release()
 
     def _new_http_caller(self) -> _HTTPCaller:
         if self._use_air_auth:

@@ -9,14 +9,13 @@ from byteplus_rec_core.metrics.metrics_option import *
 from byteplus_rec_core.metrics.constant import *
 from byteplus_rec_core.metrics.metrics_reporter import MetricsReporter
 from byteplus_rec_core.metrics.protocol import Metric, MetricMessage, MetricLog, MetricLogMessage
-from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler
 
 log = logging.getLogger(__name__)
 
 
 class MetricsCollector(object):
     metrics_cfg: MetricsCfg = None
-    host_availabler: AbstractHostAvailabler = None
+    host_availabler = None
     metrics_reporter: MetricsReporter
     metrics_collector: Queue = None
     metrics_log_collector: Queue = None
@@ -26,7 +25,7 @@ class MetricsCollector(object):
     lock: Lock = Lock()
 
     @classmethod
-    def init(cls, cfg: MetricsCfg = None, host_availabler: Optional[AbstractHostAvailabler] = None):
+    def init(cls, cfg: MetricsCfg = None, host_availabler = None):
         if cls.initialed:
             return
         if cfg is None:
@@ -43,7 +42,7 @@ class MetricsCollector(object):
         cls._do_init(cfg)
 
     @classmethod
-    def _do_init(cls, cfg: MetricsCfg, host_availabler: Optional[AbstractHostAvailabler] = None):
+    def _do_init(cls, cfg: MetricsCfg, host_availabler = None):
         cls.lock.acquire()
         if cls.initialed:
             return

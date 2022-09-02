@@ -37,10 +37,3 @@ METRICS_TYPE_STORE: str = "store"
 METRICS_TYPE_TIMER: str = "timer"
 METRICS_TYPE_RATE_COUNTER: str = "rate_counter"
 METRICS_TYPE_METER: str = "meter"
-
-
-@unique
-class MetricsType(Enum):
-    metrics_type_counter = 0
-    metrics_type_timer = 1
-    metrics_type_store = 2
