@@ -62,6 +62,10 @@ class MetricsCollector(object):
         cls.lock.release()
 
     @classmethod
+    def is_initialed(cls) -> bool:
+        return cls.initialed
+
+    @classmethod
     def is_enable_metrics(cls) -> bool:
         if cls.metrics_cfg is None:
             return False

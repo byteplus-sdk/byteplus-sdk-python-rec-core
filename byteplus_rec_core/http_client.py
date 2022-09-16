@@ -123,7 +123,9 @@ class _HTTPClientBuilder(object):
 
         self._check_required_field()
         self._fill_default()
-        self._init_global_host_availabler()
+        if not MetricsCollector.is_initialed() and self._metrics_cfg is not None:
+            if self._metrics_cfg.enable_metrics or self._metrics_cfg.enable_metrics_log:
+                self._init_global_host_availabler()
         MetricsCollector.init(self._metrics_cfg, _global_host_availabler)
         return HTTPClient(self._new_http_caller(), self._host_availabler, self._schema, self._project_id)
 
