@@ -266,11 +266,10 @@ class _HTTPCaller(object):
                              "[ByteplusSDK] http status not 200, project_id:{}, url:{}, code:{}, msg:{}, headers:\n{}, "
                              "body:\n{}",
                              self._project_id, url, rsp.status_code, rsp.reason, str(rsp.headers), str(rsp_bytes))
-            log.error(self._get_req_id(),
-                      "[ByteplusSDK] http status not 200, url:%s code:%d msg:%s headers:\n%s body:\n%s",
+            log.error("[ByteplusSDK] http status not 200, url:%s code:%d msg:%s headers:\n%s body:\n%s",
                       url, rsp.status_code, rsp.reason, str(rsp.headers), str(rsp_bytes))
         else:
-            MetricsLog.error("[ByteplusSDK] http status not 200, project_id:{}, url:{}, code:{}, msg:{}, headers:\n{}",
+            MetricsLog.error(self._get_req_id(), "[ByteplusSDK] http status not 200, project_id:{}, url:{}, code:{}, msg:{}, headers:\n{}",
                              self._project_id, url, rsp.status_code, rsp.reason, str(rsp.headers))
             log.error("[ByteplusSDK] http status not 200, url:%s code:%d msg:%s headers:\n%s",
                       url, rsp.status_code, rsp.reason, str(rsp.headers))
