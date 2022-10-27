@@ -2,39 +2,54 @@ import logging
 import time
 from typing import List, Optional, Dict
 import requests
-from requests import Response
+from requests import Response, Session
 
-from byteplus_rec_core import constant
+from byteplus_rec_core import constant, utils
 from byteplus_rec_core.abtract_host_availabler import AbstractHostAvailabler, HostAvailabilityScore
 
 log = logging.getLogger(__name__)
 
 _DEFAULT_WINDOW_SIZE: int = 60
-_DEFAULT_PING_URL_FORMAT: str = "http://{}/predict/api/ping"
+_DEFAULT_PING_SCHEMA = "http"
+_DEFAULT_PING_URL_FORMAT: str = "{}://{}/predict/api/ping"
 _DEFAULT_PING_TIMEOUT_SECONDS: float = 0.3
+_DEFAULT_PING_INTERVAL_SECONDS: float = 1
+_DEFAULT_FETCH_HOST_INTERVAL_SECONDS: float = 10
 
 
 class Config(object):
     def __init__(self,
-                 ping_url_format=_DEFAULT_PING_URL_FORMAT,
-                 window_size=_DEFAULT_WINDOW_SIZE,
-                 ping_timeout_seconds=_DEFAULT_PING_TIMEOUT_SECONDS):
+                 ping_url_format: str = _DEFAULT_PING_URL_FORMAT,
+                 window_size: int = _DEFAULT_WINDOW_SIZE,
+                 ping_timeout_seconds: float = _DEFAULT_PING_TIMEOUT_SECONDS,
+                 ping_interval_seconds: float = _DEFAULT_PING_INTERVAL_SECONDS,
+                 fetch_host_interval_seconds: float = _DEFAULT_FETCH_HOST_INTERVAL_SECONDS):
         self.ping_url_format = ping_url_format
         self.window_size = window_size
         if window_size < 0:
             self.window_size = _DEFAULT_WINDOW_SIZE
         self.ping_timeout_seconds = ping_timeout_seconds
+        self.ping_interval_seconds = ping_interval_seconds
+        self.fetch_host_interval_seconds = fetch_host_interval_seconds
 
 
-class _PingHostAvailabler(AbstractHostAvailabler):
+class PingHostAvailabler(AbstractHostAvailabler):
     def __init__(self, default_hosts: Optional[List[str]] = None,
                  project_id: Optional[str] = None,
-                 config: Optional[Config] = Config()):
-        super().__init__(default_hosts, project_id)
+                 config: Optional[Config] = None):
+        if config is None:
+            config = Config()
         self._config: Config = config
+        self._ping_http_cli: Session = requests.Session()
         self._host_window_map: Dict[str, _Window] = {}
         for host in default_hosts:
             self._host_window_map[host] = _Window(self._config.window_size)
+        super().__init__(
+            default_hosts,
+            project_id,
+            self._config.fetch_host_interval_seconds,
+            self._config.ping_interval_seconds
+        )
         return
 
     def do_score_hosts(self, hosts: List[str]) -> List[HostAvailabilityScore]:
@@ -47,35 +62,11 @@ class _PingHostAvailabler(AbstractHostAvailabler):
             if window is None:
                 window = _Window(self._config.window_size)
                 self._host_window_map[host] = window
-            success = self._ping(host)
+            success = utils.ping(self.project_id, self._ping_http_cli, self._config.ping_url_format,
+                                 _DEFAULT_PING_SCHEMA, host, self._config.ping_timeout_seconds)
             window.put(success)
             host_availability_scores.append(HostAvailabilityScore(host, 1 - window.failure_rate()))
         return host_availability_scores
-
-    def _ping(self, host) -> bool:
-        url: str = self._config.ping_url_format.format(host)
-        start = time.time()
-        try:
-            rsp: Response = requests.get(url, headers=None, timeout=self._config.ping_timeout_seconds)
-            cost = int((time.time() - start) * 1000)
-            if self._is_ping_success(rsp):
-                log.debug("[ByteplusSDK] ping success, host:'%s' cost:%dms", host, cost)
-                return True
-            log.warning("[ByteplusSDK] ping fail, host:'%s', cost:%dms, status:'%s'", host, cost, rsp.status_code)
-            return False
-        except BaseException as e:
-            cost = int((time.time() - start) * 1000)
-            log.warning("[ByteplusSDK] ping find err, host:'%s', cost:%dms, err:'%s'", host, cost, e)
-            return False
-
-    @staticmethod
-    def _is_ping_success(rsp: Response):
-        if rsp.status_code != constant.HTTP_STATUS_OK:
-            return False
-        if rsp.content is None:
-            return False
-        rsp_str: str = str(rsp.content)
-        return len(rsp_str) < 20 and "pong" in rsp_str
 
 
 class _Window(object):

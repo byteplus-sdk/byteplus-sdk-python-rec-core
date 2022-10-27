@@ -12,3 +12,17 @@ STATUS_CODE_OPERATION_LOSS: int = 410
 STATUS_CODE_TOO_MANY_REQUEST: int = 429
 
 POST_METHOD_NAME = "POST"
+
+
+# The default max idle connections of okhttp client connection pool
+DEFAULT_MAX_IDLE_CONNECTIONS: int = 32
+# The default keepalive ping interval
+DEFAULT_KEEPALIVE_PING_INTERVAL_SECONDS: float = 45
+
+# Metrics Key
+METRICS_KEY_COMMON_INFO = "common.info"
+METRICS_KEY_COMMON_WARN = "common.warn"
+METRICS_KEY_COMMON_ERROR = "common.err"
+METRICS_KEY_REQUEST_TOTAL_COST = "request.total.cost"
+METRICS_KEY_REQUEST_COUNT = "request.count"
+METRICS_KEY_HEARTBEAT_COUNT = "heartbeat.count"
