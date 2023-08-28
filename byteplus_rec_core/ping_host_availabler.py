@@ -58,7 +58,7 @@ class PingHostAvailabler(AbstractHostAvailabler):
             return [HostAvailabilityScore(hosts[0], 0.0)]
         host_availability_scores = []
         for host in hosts:
-            window = self._host_window_map[host]
+            window = self._host_window_map.get(host, None)
             if window is None:
                 window = _Window(self._config.window_size)
                 self._host_window_map[host] = window

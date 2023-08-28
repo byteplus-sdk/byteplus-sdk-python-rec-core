@@ -32,6 +32,17 @@ class HostAvailabilityScore:
         return _HOST_AVAILABLE_SCORE_FORMAT.format(self.host, self.score)
 
 
+class HostScoreResult:
+    def __init__(self, host_scores: Optional[List[HostAvailabilityScore]] = None):
+        self.host_scores = host_scores
+
+    def __str__(self):
+        if self.host_scores is None:
+            return '[]'
+        host_score_str_list = [host_score.__str__() for host_score in self.host_scores]
+        return '[{}]'.format(','.join(host_score_str_list))
+
+
 # class AvailablerConfig(object):
 #     def __init__(self, default_hosts: Optional[List[str]] = None,
 #                  project_id: Optional[str] = None,
@@ -134,6 +145,8 @@ class AbstractHostAvailabler(object):
     def _is_server_hosts_not_updated(self, new_host_config: Dict[str, List[str]]) -> bool:
         if self._host_config is None or new_host_config is None:
             return False
+        if len(self._host_config) != len(new_host_config):
+            return False
         for path in self._host_config:
             new_host: List[str] = new_host_config.get(path)
             old_host: List[str] = self._host_config.get(path)
@@ -207,8 +220,8 @@ class AbstractHostAvailabler(object):
         hosts: List[str] = self._distinct_hosts(host_config)
         new_host_scores: List[HostAvailabilityScore] = self.do_score_hosts(hosts)
         MetricsLog.info(log_id, "[ByteplusSDK][Score] score hosts: project_id: {}, result:{}",
-                        self.project_id, new_host_scores)
-        log.debug("[ByteplusSDK] score hosts result: '%s'", new_host_scores)
+                        self.project_id, HostScoreResult(new_host_scores))
+        log.debug("[ByteplusSDK] score hosts result: '%s'", HostScoreResult(new_host_scores))
         if new_host_scores is None or len(new_host_scores) == 0:
             metrics_tags = [
                 "type:scoring_hosts_return_empty_list",
@@ -268,6 +281,8 @@ class AbstractHostAvailabler(object):
             return False
         if new_host_config is None:
             return True
+        if len(old_host_config) != len(new_host_config):
+            return False
         for path in old_host_config:
             new_hosts = new_host_config.get(path)
             old_hosts = old_host_config.get(path)
