@@ -21,6 +21,7 @@ _FETCH_HOST_URL_FORMAT: str = "http://{}/data/api/sdk/host?project_id={}"
 _HOST_AVAILABLE_SCORE_FORMAT: str = "host={}, score={}"
 _DEFAULT_FETCH_HOST_INTERVAL_SECONDS: float = 10
 _DEFAULT_SCORE_HOST_INTERVAL_SECONDS: float = 1
+_MAIN_HOST_AVAILABLE_SCORE: float = 0.9
 
 
 class HostAvailabilityScore:
@@ -55,10 +56,14 @@ class HostScoreResult:
 class AbstractHostAvailabler(object):
     def __init__(self, default_hosts: Optional[List[str]] = None,
                  project_id: Optional[str] = None,
+                 main_host: Optional[str] = None,
+                 skip_fetch_hosts: Optional[bool] = False,
                  fetch_host_interval_seconds: Optional[float] = _DEFAULT_FETCH_HOST_INTERVAL_SECONDS,
                  score_host_interval_seconds: Optional[float] = _DEFAULT_SCORE_HOST_INTERVAL_SECONDS):
         self.project_id = project_id
         self._default_hosts = default_hosts
+        self._main_host = main_host
+        self._skip_fetch_hosts = skip_fetch_hosts
         self._host_config = None
         self._abort: bool = False
         self._close_fetch_hosts_flag: bool = False
@@ -69,7 +74,7 @@ class AbstractHostAvailabler(object):
 
     def init(self):
         self.set_hosts(self._default_hosts)
-        if not utils.is_empty_str(self.project_id):
+        if not self._skip_fetch_hosts:
             self._fetch_hosts_from_server()
             self._fetch_hosts_thread = threading.Thread(target=self._start_fetch_hosts_from_server)
             self._fetch_hosts_thread.start()
@@ -260,11 +265,14 @@ class AbstractHostAvailabler(object):
     def do_score_hosts(self, hosts: List[str]) -> List[HostAvailabilityScore]:
         raise NotImplementedError
 
-    @staticmethod
-    def _copy_and_sort_host(host_config: Dict[str, List[str]], new_host_scores: List[HostAvailabilityScore]) -> \
+    def _copy_and_sort_host(self, host_config: Dict[str, List[str]], new_host_scores: List[HostAvailabilityScore]) -> \
             Dict[str, List[str]]:
         host_score_index = {}
         for host_score in new_host_scores:
+            # main_host is prioritized for use when available
+            if self._main_host is not None and self._main_host == host_score.host \
+                    and host_score.score >= _MAIN_HOST_AVAILABLE_SCORE:
+                host_score.score = 1 + host_score.score
             host_score_index[host_score.host] = host_score.score
         new_host_config = {}
         for path in host_config:
