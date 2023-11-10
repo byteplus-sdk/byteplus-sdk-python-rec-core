@@ -36,7 +36,9 @@ class Config(object):
 class PingHostAvailabler(AbstractHostAvailabler):
     def __init__(self, default_hosts: Optional[List[str]] = None,
                  project_id: Optional[str] = None,
-                 config: Optional[Config] = None):
+                 config: Optional[Config] = None,
+                 main_host: Optional[str] = None,
+                 skip_fetch_hosts: Optional[bool] = False):
         if config is None:
             config = Config()
         self._config: Config = config
@@ -47,6 +49,8 @@ class PingHostAvailabler(AbstractHostAvailabler):
         super().__init__(
             default_hosts,
             project_id,
+            main_host,
+            skip_fetch_hosts,
             self._config.fetch_host_interval_seconds,
             self._config.ping_interval_seconds
         )

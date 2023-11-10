@@ -55,6 +55,7 @@ class _HTTPClientBuilder(object):
         self._auth_service: Optional[str] = None
         self._schema: Optional[str] = None
         self._hosts: Optional[List[str]] = None
+        self._main_host: Optional[str] = None
         self._region: Optional[AbstractRegion] = None
         self._host_availabler_factory: Optional[HostAvailablerFactory] = None
         self._keep_alive: Optional[bool] = False
@@ -96,6 +97,10 @@ class _HTTPClientBuilder(object):
 
     def hosts(self, hosts: list):
         self._hosts = hosts
+        return self
+
+    def main_host(self, main_host: str):
+        self._main_host = main_host
         return self
 
     def region(self, region: AbstractRegion):
@@ -159,9 +164,14 @@ class _HTTPClientBuilder(object):
 
     def _new_host_availabler(self) -> AbstractHostAvailabler:
         if self._hosts is not None and len(self._hosts) > 0:
-            return self._host_availabler_factory.new_host_availabler(hosts=self._hosts)
+            return self._host_availabler_factory.new_host_availabler(hosts=self._hosts,
+                                                                     project_id=self._project_id,
+                                                                     main_host=self._main_host,
+                                                                     skip_fetch_hosts=True)
         return self._host_availabler_factory.new_host_availabler(hosts=self._region.get_hosts(),
-                                                                 project_id=self._project_id)
+                                                                 project_id=self._project_id,
+                                                                 main_host=self._main_host,
+                                                                 skip_fetch_hosts=False)
 
     def _init_global_host_availabler(self):
         global _global_host_availabler
