@@ -14,7 +14,6 @@ _DEFAULT_PING_SCHEMA = "http"
 _DEFAULT_PING_URL_FORMAT: str = "{}://{}/predict/api/ping"
 _DEFAULT_PING_TIMEOUT_SECONDS: float = 0.3
 _DEFAULT_PING_INTERVAL_SECONDS: float = 1
-_DEFAULT_FETCH_HOST_INTERVAL_SECONDS: float = 10
 
 
 class Config(object):
@@ -22,23 +21,20 @@ class Config(object):
                  ping_url_format: str = _DEFAULT_PING_URL_FORMAT,
                  window_size: int = _DEFAULT_WINDOW_SIZE,
                  ping_timeout_seconds: float = _DEFAULT_PING_TIMEOUT_SECONDS,
-                 ping_interval_seconds: float = _DEFAULT_PING_INTERVAL_SECONDS,
-                 fetch_host_interval_seconds: float = _DEFAULT_FETCH_HOST_INTERVAL_SECONDS):
+                 ping_interval_seconds: float = _DEFAULT_PING_INTERVAL_SECONDS):
         self.ping_url_format = ping_url_format
         self.window_size = window_size
         if window_size < 0:
             self.window_size = _DEFAULT_WINDOW_SIZE
         self.ping_timeout_seconds = ping_timeout_seconds
         self.ping_interval_seconds = ping_interval_seconds
-        self.fetch_host_interval_seconds = fetch_host_interval_seconds
 
 
 class PingHostAvailabler(AbstractHostAvailabler):
     def __init__(self, default_hosts: Optional[List[str]] = None,
                  project_id: Optional[str] = None,
                  config: Optional[Config] = None,
-                 main_host: Optional[str] = None,
-                 skip_fetch_hosts: Optional[bool] = False):
+                 main_host: Optional[str] = None):
         if config is None:
             config = Config()
         self._config: Config = config
@@ -50,8 +46,6 @@ class PingHostAvailabler(AbstractHostAvailabler):
             default_hosts,
             project_id,
             main_host,
-            skip_fetch_hosts,
-            self._config.fetch_host_interval_seconds,
             self._config.ping_interval_seconds
         )
         return

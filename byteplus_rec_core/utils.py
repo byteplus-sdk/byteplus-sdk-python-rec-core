@@ -1,3 +1,4 @@
+import threading
 import time
 import uuid
 from datetime import timedelta
@@ -133,3 +134,22 @@ class HTTPRequest(object):
         self.url: str = url
         self.method: str = method
         self.req_bytes: bytes = req_bytes
+
+
+def time_schedule(call, time_interval_seconds: float):
+    stop = False
+
+    def time_run():
+        while True:
+            if stop:
+                return
+            call()
+            time.sleep(time_interval_seconds)
+
+    def cancel_func():
+        nonlocal stop
+        stop = True
+
+    thread = threading.Thread(target=time_run)
+    thread.start()
+    return cancel_func

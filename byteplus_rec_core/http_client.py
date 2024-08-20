@@ -18,6 +18,9 @@ from byteplus_rec_core import utils
 log = logging.getLogger(__name__)
 
 
+_global_host_availabler_lock = threading.Lock()
+_global_host_availabler: Optional[AbstractHostAvailabler] = None
+
 class HTTPClient(object):
     def __init__(self, http_caller: _HTTPCaller, host_availabler: AbstractHostAvailabler, schema: str, project_id: str):
         self._http_caller = http_caller
@@ -38,10 +41,6 @@ class HTTPClient(object):
     def shutdown(self):
         self._host_availabler.shutdown()
         self._http_caller.shutdown()
-
-
-_global_host_availabler_lock = threading.Lock()
-_global_host_availabler: Optional[AbstractHostAvailabler] = None
 
 
 class _HTTPClientBuilder(object):
@@ -166,12 +165,10 @@ class _HTTPClientBuilder(object):
         if self._hosts is not None and len(self._hosts) > 0:
             return self._host_availabler_factory.new_host_availabler(hosts=self._hosts,
                                                                      project_id=self._project_id,
-                                                                     main_host=self._main_host,
-                                                                     skip_fetch_hosts=True)
+                                                                     main_host=self._main_host)
         return self._host_availabler_factory.new_host_availabler(hosts=self._region.get_hosts(),
                                                                  project_id=self._project_id,
-                                                                 main_host=self._main_host,
-                                                                 skip_fetch_hosts=False)
+                                                                 main_host=self._main_host)
 
     def _init_global_host_availabler(self):
         global _global_host_availabler

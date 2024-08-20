@@ -22,10 +22,11 @@ class MetricsCollector(object):
     cleaning_metrics_collector: bool = False
     cleaning_metrics_log_collector: bool = False
     initialed: bool = False
+    _cancel = None
     lock: Lock = Lock()
 
     @classmethod
-    def init(cls, cfg: MetricsCfg = None, host_availabler = None):
+    def init(cls, cfg: MetricsCfg = None, host_availabler=None):
         if cls.initialed:
             return
         if cfg is None:
@@ -42,7 +43,7 @@ class MetricsCollector(object):
         cls._do_init(cfg)
 
     @classmethod
-    def _do_init(cls, cfg: MetricsCfg, host_availabler = None):
+    def _do_init(cls, cfg: MetricsCfg, host_availabler=None):
         cls.lock.acquire()
         if cls.initialed:
             return
@@ -57,7 +58,7 @@ class MetricsCollector(object):
         if not cls.is_enable_metrics() and not cls.is_enable_metrics_log():
             cls.initialed = True
             return
-        threading.Thread(target=cls._report).start()
+        cls.cancel = utils.time_schedule(cls._report, cls.metrics_cfg.report_interval_seconds)
         cls.initialed = True
         cls.lock.release()
 
@@ -87,7 +88,7 @@ class MetricsCollector(object):
             if try_times >= MAX_SPIN_TIMES:
                 return
             # sleep 10ms.
-            time.sleep(1/1000 * 10)
+            time.sleep(1 / 1000 * 10)
             try_times += 1
         if cls.metrics_collector.full():
             log.debug("[BytePlusSDK][Metrics]: The number of metrics exceeds the limit, the metrics write is rejected")
@@ -123,7 +124,7 @@ class MetricsCollector(object):
             if try_times >= MAX_SPIN_TIMES:
                 return
             # sleep 10ms.
-            time.sleep(1/1000 * 10)
+            time.sleep(1 / 1000 * 10)
             try_times += 1
         if cls.metrics_log_collector.full():
             log.debug("[BytePlusSDK][Metrics]: The number of metrics logs exceeds the limit, the metrics write is "
@@ -138,12 +139,10 @@ class MetricsCollector(object):
 
     @classmethod
     def _report(cls):
-        time.sleep(cls.metrics_cfg.report_interval_seconds)
         if cls.is_enable_metrics():
             cls._report_metrics()
         if cls.is_enable_metrics_log():
             cls._report_metrics_log()
-        cls._report()
 
     @classmethod
     def _report_metrics(cls):
@@ -196,3 +195,9 @@ class MetricsCollector(object):
         if cls.host_availabler is None:
             return cls.metrics_cfg.domain
         return cls.host_availabler.get_host(path)
+
+    @classmethod
+    def shutdown(cls):
+        cls.initialed = False
+        if cls._cancel is not None:
+            cls._cancel()
