@@ -1,4 +1,11 @@
-# [](https://github.com/byteplus-sdk/byteplus-sdk-python-rec-core/compare/v1.0.5...v) (2023-11-10)
+# [](https://github.com/byteplus-sdk/byteplus-sdk-python-rec-core/compare/v1.0.6...v) (2024-08-21)
+
+## [1.0.6](https://github.com/byteplus-sdk/byteplus-sdk-python-rec-core/compare/v1.0.5...v1.0.6) (2024-08-21)
+
+
+### Bug Fixes
+
+* delete obsolete logic and fix time schedule task stack overflow problem 
 
 
 ### Features
