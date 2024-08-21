@@ -48,7 +48,6 @@ class _HTTPCaller(object):
                  schema: str,
                  keep_alive: bool,
                  credential: _Credential = None):
-        self._abort: bool = False
         self._project_id = project_id
         self._tenant_id: str = tenant_id
         self._air_auth_token: Optional[str] = air_auth_token
@@ -63,6 +62,7 @@ class _HTTPCaller(object):
         self._http_cli.mount("https://", HTTPAdapter(pool_maxsize=self._config.max_idle_connections))
         self._http_cli.mount("http://", HTTPAdapter(pool_maxsize=self._config.max_idle_connections))
         self._local = threading.local()
+        self._cancel = None
         if self._keep_alive:
             self._init_heartbeat_executor()
 
@@ -70,12 +70,9 @@ class _HTTPCaller(object):
         return self._local.req_id
 
     def _init_heartbeat_executor(self):
-        threading.Thread(target=self._heartbeat).start()
+        self._cancel = utils.time_schedule(self._heartbeat, self._config.keep_alive_ping_interval_seconds)
 
     def _heartbeat(self):
-        if self._abort:
-            return
-        time.sleep(self._config.keep_alive_ping_interval_seconds)
         for host in self._host_availabler.get_hosts():
             metrics_tags = [
                 "from:http_caller",
@@ -85,7 +82,6 @@ class _HTTPCaller(object):
             Metrics.counter(constant.METRICS_KEY_HEARTBEAT_COUNT, 1, *metrics_tags)
             utils.ping(self._project_id, self._http_cli, _DEFAULT_PING_URL_FORMAT,
                        self._schema, host, _DEFAULT_PING_TIMEOUT_SECONDS)
-        self._heartbeat()
 
     def do_json_request(self, url: str, request: Union[dict, list], *opts: Option) -> Union[dict, list]:
         options: Options = Option.conv_to_options(opts)
@@ -283,4 +279,5 @@ class _HTTPCaller(object):
         return False
 
     def shutdown(self):
-        self._abort = True
+        if self._cancel is not None:
+            self._cancel()
